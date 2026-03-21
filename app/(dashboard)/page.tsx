@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { BookmarkGrid } from '@/components/BookmarkGrid';
 import { CategoryFilter } from '@/components/CategoryFilter';
 import { PlatformFilter } from '@/components/PlatformFilter';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Card, CardContent } from '@/components/ui/card';
 
 const CATEGORIES = ['Technology', 'Science', 'Health', 'Finance', 'Business', 'Design', 'Education', 'Entertainment', 'News', 'Food', 'Travel', 'Sports', 'Philosophy', 'History', 'Art', 'Other'];
 const PLATFORMS = ['youtube', 'twitter', 'instagram', 'reddit', 'web'];
@@ -43,12 +45,31 @@ export default function DashboardPage() {
 
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1,2,3,4,5,6].map(i => <ProcessingCard key={i} />)}
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <ProcessingCard key={i} />
+          ))}
         </div>
       ) : bookmarks.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">
-          <p className="text-lg mb-2">No bookmarks yet</p>
-          <p className="text-sm">Paste a URL in the sidebar to save your first bookmark</p>
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="rounded-full bg-muted p-4 mb-4">
+            <svg
+              className="h-8 w-8 text-muted-foreground"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+              />
+            </svg>
+          </div>
+          <h3 className="font-semibold text-lg mb-1">No bookmarks yet</h3>
+          <p className="text-sm text-muted-foreground max-w-sm">
+            Paste a URL in the sidebar to save your first bookmark
+          </p>
         </div>
       ) : (
         <BookmarkGrid bookmarks={bookmarks} onUpdate={fetchBookmarks} />
@@ -59,15 +80,18 @@ export default function DashboardPage() {
 
 function ProcessingCard() {
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-4 animate-pulse">
-      <div className="flex gap-3">
-        <div className="w-20 h-20 bg-gray-200 rounded-lg" />
-        <div className="flex-1 space-y-2">
-          <div className="h-4 bg-gray-200 rounded w-3/4" />
-          <div className="h-3 bg-gray-200 rounded w-1/2" />
-          <div className="h-3 bg-gray-200 rounded w-1/4" />
+    <Card>
+      <CardContent className="p-0">
+        <Skeleton className="aspect-video rounded-none" />
+        <div className="p-3 space-y-2">
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-3 w-1/2" />
+          <div className="flex gap-1">
+            <Skeleton className="h-5 w-12" />
+            <Skeleton className="h-5 w-16" />
+          </div>
         </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }

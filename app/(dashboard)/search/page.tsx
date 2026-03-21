@@ -30,10 +30,10 @@ export default function SearchPage() {
       <h2 className="text-2xl font-bold mb-6">Search Bookmarks</h2>
       <SearchBar value={query} onChange={setQuery} placeholder="Search by meaning, not keywords..." />
 
-      {loading && <p className="mt-4 text-gray-500">Searching...</p>}
+      {loading && <p className="mt-4 text-muted-foreground">Searching...</p>}
 
       {!loading && searched && results.length === 0 && (
-        <div className="mt-8 text-center text-gray-500">
+        <div className="mt-8 text-center text-muted-foreground">
           <p>No results found for &ldquo;{query}&rdquo;</p>
           <p className="text-sm mt-1">Try different words that describe what you&apos;re looking for</p>
         </div>
@@ -41,7 +41,9 @@ export default function SearchPage() {
 
       {!loading && results.length > 0 && (
         <div className="mt-6">
-          <p className="text-sm text-gray-500 mb-4">{results.length} result{results.length !== 1 ? 's' : ''}</p>
+          <p className="text-sm text-muted-foreground mb-4">
+            {results.length} result{results.length !== 1 ? 's' : ''}
+          </p>
           <BookmarkGrid bookmarks={results} />
         </div>
       )}

@@ -1,7 +1,19 @@
 'use client';
 
 import { useState } from 'react';
-import { PlatformBadge } from './PlatformBadge';
+import { MoreHorizontal, ExternalLink, Trash2 } from 'lucide-react';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Separator } from '@/components/ui/separator';
 
 interface BookmarkCardProps {
   bookmark: {
@@ -23,97 +35,130 @@ interface BookmarkCardProps {
     };
   };
   onDelete?: () => void;
+  onUpdate?: () => void;
 }
 
-export function BookmarkCard({ bookmark, onDelete }: BookmarkCardProps) {
+const PLATFORM_COLORS: Record<string, string> = {
+  youtube: 'bg-red-100 text-red-700 hover:bg-red-100',
+  twitter: 'bg-sky-100 text-sky-700 hover:bg-sky-100',
+  instagram: 'bg-pink-100 text-pink-700 hover:bg-pink-100',
+  reddit: 'bg-orange-100 text-orange-700 hover:bg-orange-100',
+  web: 'bg-gray-100 text-gray-700 hover:bg-gray-100',
+};
+
+const PLATFORM_LABELS: Record<string, string> = {
+  youtube: 'YT',
+  twitter: 'X',
+  instagram: 'IG',
+  reddit: 'RD',
+  web: 'Web',
+};
+
+export function BookmarkCard({ bookmark, onDelete, onUpdate }: BookmarkCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const { processedContent: pc } = bookmark;
 
-  const effectiveCategory = bookmark.personalNote ?? pc.category ?? 'Other';
-
   return (
-    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
-      <div className="flex gap-3 p-4">
-        {/* Thumbnail */}
-        <div className="flex-shrink-0">
-          {pc.thumbnailUrl ? (
+    <Card className="overflow-hidden hover:shadow-md transition-shadow">
+      <CardHeader className="p-0">
+        {/* Thumbnail or platform placeholder */}
+        {pc.thumbnailUrl ? (
+          <div className="aspect-video bg-muted overflow-hidden">
             <img
               src={pc.thumbnailUrl}
               alt=""
-              className="w-20 h-20 object-cover rounded-lg"
+              className="w-full h-full object-cover"
             />
-          ) : (
-            <div className="w-20 h-20 bg-gray-100 rounded-lg flex items-center justify-center">
-              <PlatformBadge platform={pc.platform} resource={pc.resource} size="lg" />
-            </div>
+          </div>
+        ) : (
+          <div className="aspect-video bg-muted flex items-center justify-center">
+            <span className={`text-sm font-medium px-2 py-1 rounded ${PLATFORM_COLORS[pc.platform] ?? PLATFORM_COLORS.web}`}>
+              {PLATFORM_LABELS[pc.platform] ?? 'Web'}
+            </span>
+          </div>
+        )}
+      </CardHeader>
+
+      <CardContent className="p-3 space-y-2">
+        {/* Platform + content type */}
+        <div className="flex items-center gap-1.5">
+          <Badge variant="secondary" className="text-xs">
+            {PLATFORM_LABELS[pc.platform] ?? pc.platform}
+          </Badge>
+          {pc.contentType && (
+            <span className="text-xs text-muted-foreground">{pc.contentType}</span>
           )}
         </div>
 
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <PlatformBadge platform={pc.platform} resource={pc.resource} />
-                {pc.contentType && <span className="text-xs text-gray-500">{pc.contentType}</span>}
-              </div>
-              <h3 className="font-semibold text-sm line-clamp-2 leading-snug">
-                {pc.title ?? 'Untitled'}
-              </h3>
-              {pc.authorHandle && (
-                <p className="text-xs text-gray-500 mt-0.5">{pc.authorHandle}</p>
-              )}
-            </div>
+        {/* Title */}
+        <h3 className="font-semibold text-sm leading-snug line-clamp-2">
+          {pc.title ?? 'Untitled'}
+        </h3>
 
-            {/* Menu */}
-            <div className="relative">
-              <button
-                onClick={() => setMenuOpen(!menuOpen)}
-                className="p-1 text-gray-400 hover:text-gray-600 rounded"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                </svg>
-              </button>
-              {menuOpen && (
-                <div className="absolute right-0 mt-1 w-40 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
-                  <a
-                    href={bookmark.originalUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block px-3 py-2 text-sm hover:bg-gray-50"
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    Open URL
-                  </a>
-                  <button
-                    onClick={() => { setMenuOpen(false); onDelete?.(); }}
-                    className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-gray-50"
-                  >
-                    Delete
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
+        {/* Author */}
+        {pc.authorHandle && (
+          <p className="text-xs text-muted-foreground">{pc.authorHandle}</p>
+        )}
 
-          {pc.summary && (
-            <p className="text-xs text-gray-600 mt-1.5 line-clamp-2">{pc.summary}</p>
-          )}
+        {/* Summary */}
+        {pc.summary && (
+          <p className="text-xs text-muted-foreground line-clamp-2">{pc.summary}</p>
+        )}
 
-          {bookmark.personalNote && (
-            <p className="text-xs text-blue-600 mt-1 italic">&ldquo;{bookmark.personalNote}&rdquo;</p>
-          )}
+        {/* Personal note */}
+        {bookmark.personalNote && (
+          <p className="text-xs text-primary italic">&ldquo;{bookmark.personalNote}&rdquo;</p>
+        )}
 
-          <div className="flex flex-wrap gap-1 mt-2">
-            {(pc.keyTopics ?? []).slice(0, 3).map((topic: string) => (
-              <span key={topic} className="px-1.5 py-0.5 bg-gray-100 text-gray-600 text-xs rounded">
+        {/* Topics */}
+        {pc.keyTopics && pc.keyTopics.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {pc.keyTopics.slice(0, 3).map((topic) => (
+              <Badge key={topic} variant="outline" className="text-xs">
                 {topic}
-              </span>
+              </Badge>
             ))}
           </div>
+        )}
+
+        <Separator />
+
+        {/* Actions */}
+        <div className="flex items-center justify-between pt-1">
+          <div className="flex items-center gap-1">
+            {bookmark.collection && (
+              <Badge variant="outline" className="text-xs">
+                {bookmark.collection.emoji ? `${bookmark.collection.emoji} ` : ''}
+                {bookmark.collection.name}
+              </Badge>
+            )}
+          </div>
+
+          <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+            <DropdownMenuTrigger>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem
+                onClick={() => window.open(bookmark.originalUrl, '_blank', 'noopener,noreferrer')}
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Open URL
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={onDelete}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }

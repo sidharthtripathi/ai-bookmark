@@ -1,5 +1,13 @@
 'use client';
 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+
 interface PlatformFilterProps {
   platforms: string[];
   selected: string;
@@ -16,15 +24,18 @@ const LABELS: Record<string, string> = {
 
 export function PlatformFilter({ platforms, selected, onSelect }: PlatformFilterProps) {
   return (
-    <select
-      value={selected}
-      onChange={e => onSelect(e.target.value)}
-      className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-    >
-      <option value="">All Platforms</option>
-      {platforms.map(p => (
-        <option key={p} value={p}>{LABELS[p] ?? p}</option>
-      ))}
-    </select>
+    <Select value={selected || '__none__'} onValueChange={(v) => { if (v) onSelect(v === '__none__' ? '' : v); }}>
+      <SelectTrigger className="w-[160px]">
+        <SelectValue placeholder="All Platforms" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="__none__">All Platforms</SelectItem>
+        {platforms.map((p) => (
+          <SelectItem key={p} value={p}>
+            {LABELS[p] ?? p}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }

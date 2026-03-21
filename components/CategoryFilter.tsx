@@ -1,5 +1,13 @@
 'use client';
 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+
 interface CategoryFilterProps {
   categories: string[];
   selected: string;
@@ -8,15 +16,18 @@ interface CategoryFilterProps {
 
 export function CategoryFilter({ categories, selected, onSelect }: CategoryFilterProps) {
   return (
-    <select
-      value={selected}
-      onChange={e => onSelect(e.target.value)}
-      className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-    >
-      <option value="">All Categories</option>
-      {categories.map(c => (
-        <option key={c} value={c}>{c}</option>
-      ))}
-    </select>
+    <Select value={selected || '__none__'} onValueChange={(v) => { if (v) onSelect(v === '__none__' ? '' : v); }}>
+      <SelectTrigger className="w-[180px]">
+        <SelectValue placeholder="All Categories" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="__none__">All Categories</SelectItem>
+        {categories.map((c) => (
+          <SelectItem key={c} value={c}>
+            {c}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }

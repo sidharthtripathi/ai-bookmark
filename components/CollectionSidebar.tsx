@@ -3,6 +3,34 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { Plus, MoreHorizontal, Trash2, Pencil } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { toast } from 'sonner';
 
 export function CollectionSidebar() {
   const pathname = usePathname();
@@ -10,97 +38,244 @@ export function CollectionSidebar() {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [newEmoji, setNewEmoji] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editEmoji, setEditEmoji] = useState('');
 
   useEffect(() => {
     fetchCollections();
   }, []);
 
   async function fetchCollections() {
-    const res = await fetch('/api/collections');
-    const data = await res.json();
-    setCollections(data);
+    try {
+      const res = await fetch('/api/collections');
+      const data = await res.json();
+      setCollections(data);
+    } catch {
+      // silently fail
+    }
   }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     if (!newName.trim()) return;
-    await fetch('/api/collections', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newName.trim(), emoji: newEmoji || undefined }),
-    });
-    setNewName('');
-    setNewEmoji('');
-    setCreating(false);
-    fetchCollections();
+
+    try {
+      const res = await fetch('/api/collections', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newName.trim(),
+          emoji: newEmoji || undefined,
+        }),
+      });
+
+      if (res.ok) {
+        setNewName('');
+        setNewEmoji('');
+        setCreating(false);
+        fetchCollections();
+        toast('Collection created');
+      }
+    } catch {
+      toast.error('Failed to create collection');
+    }
+  }
+
+  async function handleEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editName.trim() || !editingId) return;
+
+    try {
+      const res = await fetch(`/api/collections/${editingId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: editName.trim(), emoji: editEmoji || undefined }),
+      });
+
+      if (res.ok) {
+        setEditingId(null);
+        fetchCollections();
+        toast('Collection updated');
+      }
+    } catch {
+      toast.error('Failed to update collection');
+    }
+  }
+
+  async function handleDelete(id: string) {
+    try {
+      const res = await fetch(`/api/collections/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        fetchCollections();
+        toast('Collection deleted');
+      }
+    } catch {
+      toast.error('Failed to delete collection');
+    }
   }
 
   return (
-    <div className="px-4 py-2 border-t border-gray-200">
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Collections</h3>
-        <button
-          onClick={() => setCreating(!creating)}
-          className="text-xs text-blue-600 hover:underline"
-        >
-          + New
-        </button>
-      </div>
+    <>
+      <div className="px-3 py-2 border-t">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            Collections
+          </h3>
+          <Sheet open={creating} onOpenChange={setCreating}>
+            <SheetTrigger>
+              <Button variant="ghost" size="icon" className="h-6 w-6">
+                <Plus className="h-3.5 w-3.5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="bottom" className="rounded-t-xl">
+              <SheetHeader>
+                <SheetTitle>New Collection</SheetTitle>
+              </SheetHeader>
+              <form onSubmit={handleCreate} className="space-y-4 mt-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="emoji">Emoji (optional)</Label>
+                  <Input
+                    id="emoji"
+                    value={newEmoji}
+                    onChange={(e) => setNewEmoji(e.target.value)}
+                    placeholder="📚"
+                    maxLength={2}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="collection-name">Name</Label>
+                  <Input
+                    id="collection-name"
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    placeholder="My collection"
+                    autoFocus
+                    required
+                  />
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setCreating(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit">Create</Button>
+                </div>
+              </form>
+            </SheetContent>
+          </Sheet>
+        </div>
 
-      {creating && (
-        <form onSubmit={handleCreate} className="mb-2 space-y-1">
-          <input
-            type="text"
-            value={newEmoji}
-            onChange={e => setNewEmoji(e.target.value)}
-            placeholder="Emoji (optional)"
-            maxLength={2}
-            className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
-          <input
-            type="text"
-            value={newName}
-            onChange={e => setNewName(e.target.value)}
-            placeholder="Collection name"
-            className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-            autoFocus
-          />
-          <div className="flex gap-1">
-            <button type="submit" className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700">
-              Create
-            </button>
-            <button type="button" onClick={() => setCreating(false)} className="px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50">
-              Cancel
-            </button>
+        <ScrollArea className="h-40">
+          <div className="space-y-0.5">
+            {collections.length === 0 && (
+              <p className="text-xs text-muted-foreground px-2 py-1.5">
+                No collections yet
+              </p>
+            )}
+            {collections.map((c) => {
+              const href = `/collections/${c.id}`;
+              const active = pathname === href;
+              return (
+                <div
+                  key={c.id}
+                  className={cn(
+                    'group flex items-center justify-between rounded-md px-2 py-1.5 text-sm',
+                    active
+                      ? 'bg-primary/10 text-primary font-medium'
+                      : 'text-muted-foreground hover:bg-muted/50'
+                  )}
+                >
+                  <Link href={href} className="flex-1 truncate">
+                    <span className="mr-1">{c.emoji ?? ''}</span>
+                    {c.name}
+                    {c._count?.bookmarks > 0 && (
+                      <span className="ml-1 text-xs text-muted-foreground/60">
+                        {c._count.bookmarks}
+                      </span>
+                    )}
+                  </Link>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <MoreHorizontal className="h-3.5 w-3.5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setEditingId(c.id);
+                          setEditName(c.name);
+                          setEditEmoji(c.emoji ?? '');
+                        }}
+                      >
+                        <Pencil className="h-4 w-4 mr-2" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        variant="destructive"
+                        onClick={() => handleDelete(c.id)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              );
+            })}
           </div>
-        </form>
-      )}
-
-      <div className="space-y-0.5 max-h-48 overflow-y-auto">
-        {collections.length === 0 && !creating && (
-          <p className="text-xs text-gray-400 px-2 py-1">No collections yet</p>
-        )}
-        {collections.map(c => {
-          const href = `/collections/${c.id}`;
-          const active = pathname === href;
-          return (
-            <Link
-              key={c.id}
-              href={href}
-              className={`flex items-center justify-between px-2 py-1.5 rounded text-xs ${
-                active ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              <span>
-                {c.emoji ? `${c.emoji} ` : ''}{c.name}
-              </span>
-              {c._count?.bookmarks > 0 && (
-                <span className="text-gray-400">{c._count.bookmarks}</span>
-              )}
-            </Link>
-          );
-        })}
+        </ScrollArea>
       </div>
-    </div>
+
+      {/* Edit Dialog */}
+      <Dialog open={!!editingId} onOpenChange={(v) => !v && setEditingId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Collection</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEdit} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-emoji">Emoji</Label>
+              <Input
+                id="edit-emoji"
+                value={editEmoji}
+                onChange={(e) => setEditEmoji(e.target.value)}
+                placeholder="📚"
+                maxLength={2}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-name">Name</Label>
+              <Input
+                id="edit-name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                autoFocus
+                required
+              />
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditingId(null)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit">Save</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

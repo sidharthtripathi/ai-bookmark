@@ -4,16 +4,18 @@ import { CollectionSidebar } from '@/components/CollectionSidebar';
 import { AddBookmarkForm } from '@/components/AddBookmarkForm';
 import Link from 'next/link';
 import { signOut } from 'next-auth/react';
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   if (!session?.user) redirect('/login');
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      <aside className="w-64 bg-white border-r border-gray-200 flex flex-col">
-        <div className="p-4 border-b border-gray-200">
-          <h1 className="text-lg font-bold text-blue-600">AI Bookmark Saver</h1>
+    <div className="flex min-h-screen bg-background">
+      <aside className="w-64 bg-sidebar border-r border-sidebar-border flex flex-col">
+        <div className="p-4 border-b border-sidebar-border">
+          <h1 className="text-lg font-bold text-sidebar-foreground">AI Bookmark Saver</h1>
         </div>
 
         <div className="p-4">
@@ -21,32 +23,43 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </div>
 
         <nav className="flex-1 overflow-y-auto p-4 space-y-1">
-          <Link href="/" className="block px-3 py-2 rounded-lg hover:bg-gray-100 text-sm font-medium">
+          <Link
+            href="/"
+            className="block px-3 py-2 rounded-md text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent"
+          >
             All Bookmarks
           </Link>
-          <Link href="/search" className="block px-3 py-2 rounded-lg hover:bg-gray-100 text-sm font-medium">
+          <Link
+            href="/search"
+            className="block px-3 py-2 rounded-md text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent"
+          >
             Search
           </Link>
         </nav>
 
         <CollectionSidebar />
 
-        <div className="p-4 border-t border-gray-200">
+        <div className="p-4 border-t border-sidebar-border">
           <div className="flex items-center gap-3 mb-3">
-            {session.user.image && (
-              <img src={session.user.image} alt="" className="w-8 h-8 rounded-full" />
-            )}
+            <Avatar className="h-8 w-8">
+              <AvatarImage src={session.user.image ?? undefined} />
+              <AvatarFallback>{session.user.name?.[0] ?? 'U'}</AvatarFallback>
+            </Avatar>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{session.user.name ?? 'User'}</p>
-              <p className="text-xs text-gray-500 truncate">{session.user.email}</p>
+              <p className="text-sm font-medium truncate text-sidebar-foreground">
+                {session.user.name ?? 'User'}
+              </p>
+              <p className="text-xs text-muted-foreground truncate">{session.user.email}</p>
             </div>
           </div>
-          <button
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full"
             onClick={() => signOut({ callbackUrl: '/login' })}
-            className="w-full px-3 py-1.5 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
           >
             Sign Out
-          </button>
+          </Button>
         </div>
       </aside>
 
