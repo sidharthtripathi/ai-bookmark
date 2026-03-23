@@ -1,8 +1,12 @@
 import { Queue } from 'bullmq';
 
-const connection = { connection: { url: process.env.REDIS_URL! } };
+function getRedisConnection() {
+  const url = process.env.REDIS_URL!;
+  // Support password in URL: redis://:password@host:port
+  return { url };
+}
 
-export const processingQueue = new Queue('content-processing', connection);
+export const processingQueue = new Queue('content-processing', getRedisConnection());
 
 export async function enqueueProcessing(processedContentId: string) {
   await processingQueue.add('process', { processedContentId }, {

@@ -4,6 +4,9 @@ import { db } from '@/lib/db';
 import { processRawInput } from '@/lib/url-pipeline';
 import { enqueueProcessing, enqueuePineconeUpsert } from '@/lib/queue';
 
+const MAX_LIMIT = 100;
+const MAX_FIELD_LENGTH = 10000;
+
 export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -12,8 +15,8 @@ export async function GET(req: NextRequest) {
   const category = searchParams.get('category');
   const platform = searchParams.get('platform');
   const resource = searchParams.get('resource');
-  const page = parseInt(searchParams.get('page') ?? '1');
-  const limit = parseInt(searchParams.get('limit') ?? '20');
+  const page = Math.max(1, parseInt(searchParams.get('page') ?? '1') || 1);
+  const limit = Math.min(MAX_LIMIT, Math.max(1, parseInt(searchParams.get('limit') ?? '20') || 20));
   const skip = (page - 1) * limit;
 
   const where: any = { userId: session.user.id };
@@ -44,9 +47,24 @@ export async function POST(req: NextRequest) {
 
   if (!url) return NextResponse.json({ error: 'no_url_found', message: 'No valid URL detected in your input.' }, { status: 400 });
 
+  // Enforce field length limits to prevent DoS
+  if (url.length > 2000 || (personal_note && personal_note.length > MAX_FIELD_LENGTH)) {
+    return NextResponse.json({ error: 'Input too long' }, { status: 400 });
+  }
+
   const classified = await processRawInput(url);
   if (!classified.valid) {
     return NextResponse.json({ error: 'unsupported_url', message: classified.reason }, { status: 400 });
+  }
+
+  // If collection_id is provided, verify it belongs to this user (authorization check)
+  if (collection_id) {
+    const collection = await db.collection.findFirst({
+      where: { id: collection_id, userId: session.user.id }
+    });
+    if (!collection) {
+      return NextResponse.json({ error: 'Collection not found' }, { status: 404 });
+    }
   }
 
   // Check for existing bookmark

@@ -1,5 +1,6 @@
 import { S3Client } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
+import { validateUrlForFetching, assertUrlSafe } from './url-validator';
 
 const s3 = new S3Client({
   region: 'auto',
@@ -15,6 +16,7 @@ const BUCKET = process.env.R2_BUCKET!;
 /**
  * Upload a thumbnail (image buffer or CDN URL) to Cloudflare R2.
  * Returns the permanent R2 URL.
+ * SSRF protection: URL source is validated before fetching.
  */
 export async function uploadThumbnailToStorage(
   source: string | Buffer,
@@ -24,8 +26,12 @@ export async function uploadThumbnailToStorage(
 
   let buffer: Buffer;
   if (typeof source === 'string') {
-    // Download from CDN URL
-    const response = await fetch(source);
+    // Validate URL against SSRF before fetching
+    assertUrlSafe(source);
+    const response = await fetch(source, {
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!response.ok) throw new Error(`Failed to download thumbnail: ${response.status}`);
     buffer = Buffer.from(await response.arrayBuffer());
   } else {
     buffer = source;
@@ -49,8 +55,11 @@ export async function uploadThumbnailToStorage(
 
 /**
  * Download a buffer from a URL.
+ * SSRF protection: URL is validated before fetching.
  */
 export async function downloadBuffer(url: string): Promise<Buffer> {
-  const response = await fetch(url);
+  assertUrlSafe(url);
+  const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (!response.ok) throw new Error(`Failed to download buffer: ${response.status}`);
   return Buffer.from(await response.arrayBuffer());
 }

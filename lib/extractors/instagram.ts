@@ -33,9 +33,7 @@ async function extractInstagramPost(
   const run = await apify.actor('apify/instagram-post-scraper').call({
     directUrls: [classifiedUrl.normalised],
     resultsLimit: 1,
-  });
-  const { items } = await apify.dataset(run.defaultDatasetId).listItems();
-  if (!items.length) throw new Error('Instagram post not found — may be private or deleted');
+  }, { timeout: 30000 });
 
   const post = items[0] as InstagramPost;
   const caption = post.caption ?? '';
@@ -172,8 +170,8 @@ async function extractInstagramProfile(classifiedUrl: ClassifiedUrl & { platform
   const run = await apify.actor('apify/instagram-profile-scraper').call({
     directUrls: [classifiedUrl.normalised],
     resultsLimit: 1,
-  });
-  const { items } = await apify.dataset(run.defaultDatasetId).listItems();
+  }, { timeout: 30000 });
+  const { items } = await apify.dataset(run.defaultDatasetId).listItems({}, { timeout: 30000 });
   if (!items.length) throw new Error('Instagram profile not found');
 
   const profile = items[0] as any;
