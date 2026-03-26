@@ -1,22 +1,27 @@
 /**
  * Step 1: Extract a URL from whatever the user typed.
  * Returns null if no URL-like string is found.
+ *
+ * Strategy: Accept ANY http/https URL, since we handle all URLs via
+ * the "web" platform fallback. This prevents falsely rejecting valid URLs
+ * from platforms we don't explicitly recognize in the regex pattern.
  */
 export function extractUrl(rawInput: string): string | null {
   const trimmed = rawInput.trim();
 
-  // Try to find a URL-like pattern anywhere in the string
-  const urlPattern = /https?:\/\/[^\s]+|(?:www\.|youtube\.com|youtu\.be|instagram\.com|twitter\.com|x\.com|reddit\.com|redd\.it)[^\s]*/i;
+  // Match any http or https URL (with any domain)
+  // This is intentionally broad — we classify/reject URLs later in the pipeline
+  const urlPattern = /https?:\/\/[^\s"'<>]+/i;
   const match = trimmed.match(urlPattern);
   if (!match) return null;
 
   let url = match[0];
 
-  // Add protocol if missing
-  if (!url.startsWith('http')) url = 'https://' + url;
+  // URL is already http/https from the regex — no scheme addition needed
 
   // Strip trailing punctuation that was part of surrounding text
-  url = url.replace(/[.,!?)]+$/, '');
+  // being careful not to strip trailing ) if it might be part of a valid URL
+  url = url.replace(/[.,!?]+$/, '');
 
   try {
     new URL(url); // validate

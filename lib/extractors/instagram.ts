@@ -35,6 +35,9 @@ async function extractInstagramPost(
     resultsLimit: 1,
   }, { timeout: 30000 });
 
+  const { items } = await apify.dataset(run.defaultDatasetId).listItems({});
+  if (!items.length) throw new Error('Instagram post not found');
+
   const post = items[0] as InstagramPost;
   const caption = post.caption ?? '';
   const author = post.ownerUsername ?? 'unknown';
@@ -171,7 +174,7 @@ async function extractInstagramProfile(classifiedUrl: ClassifiedUrl & { platform
     directUrls: [classifiedUrl.normalised],
     resultsLimit: 1,
   }, { timeout: 30000 });
-  const { items } = await apify.dataset(run.defaultDatasetId).listItems({}, { timeout: 30000 });
+  const { items } = await apify.dataset(run.defaultDatasetId).listItems({});
   if (!items.length) throw new Error('Instagram profile not found');
 
   const profile = items[0] as any;

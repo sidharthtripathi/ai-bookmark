@@ -26,7 +26,7 @@ export async function scrapeTwitter(classifiedUrl: ValidTwitterUrl): Promise<Twi
       : { startUrls: [{ url: classifiedUrl.normalised }], maxTweets: 20 };
 
   const run = await apify.actor('quacker/twitter-scraper').call(input, { timeout: 60000 });
-  const { items } = await apify.dataset(run.defaultDatasetId).listItems({}, { timeout: 30000 });
+  const { items } = await apify.dataset(run.defaultDatasetId).listItems({});
 
   if (!items.length) throw new Error('Twitter scraper returned no results — post may be deleted or private');
 

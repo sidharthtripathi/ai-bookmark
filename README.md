@@ -7,7 +7,7 @@ A full-stack bookmark manager with AI-powered content extraction and semantic se
 - **Next.js 16** (App Router, React 19)
 - **PostgreSQL** + **Prisma** — user data, bookmarks, content cache
 - **Redis** + **BullMQ** — async job queue for AI processing
-- **Pinecone** — vector database for semantic search
+- **Qdrant** — vector database for semantic search (self-hosted via Docker)
 - **Google Gemini AI** — content extraction & embeddings
 - **Apify** — Twitter/Instagram scraping
 - **Cloudflare R2** (S3-compatible) — permanent thumbnail storage
@@ -26,7 +26,7 @@ A full-stack bookmark manager with AI-powered content extraction and semantic se
 docker compose up -d
 ```
 
-Starts PostgreSQL (`localhost:5432`) and Redis (`localhost:6379`).
+Starts PostgreSQL (`localhost:5432`), Redis (`localhost:6379`), and Qdrant (`localhost:6333`).
 
 ### 2. Install Dependencies
 
@@ -61,9 +61,11 @@ GOOGLE_CLIENT_SECRET="your-google-client-secret"
 # Google Gemini AI
 GEMINI_API_KEY="your-gemini-api-key"
 
-# Pinecone Vector DB
-PINECONE_API_KEY="your-pinecone-api-key"
-PINECONE_INDEX="bookmarks"
+# Qdrant Vector DB (self-hosted via Docker)
+QDRANT_HOST="localhost"
+QDRANT_PORT=6333
+QDRANT_API_KEY="optional-api-key-if-enabled"
+QDRANT_COLLECTION="bookmarks"
 
 # Apify (Twitter/Instagram scraping)
 APIFY_API_TOKEN="your-apify-token"
@@ -79,11 +81,9 @@ R2_PUBLIC_URL="https://your-public-url.com"
 REDDIT_USER_AGENT="BookmarkApp/1.0 (by /u/your-username)"
 ```
 
-### 5. Create Pinecone Index
+### 5. Start Qdrant
 
-Create an index at [pinecone.io](https://pinecone.io):
-- **Dimension:** `1536`
-- **Metric:** `cosine`
+Qdrant is started automatically with `docker compose up -d` (step 1). No additional setup required - the collection is created automatically on first use.
 
 ### 6. Run
 
@@ -103,7 +103,7 @@ Open [http://localhost:3000](http://localhost:3000)
 |---------|----------|-----------|
 | Google OAuth | Yes | Yes (GCP free tier) |
 | Gemini API | Yes | Yes ($ credit on signup) |
-| Pinecone | Yes | Yes (starter free) |
+| Qdrant | No | Self-hosted (free) |
 | Apify | Yes | Yes (small free tier) |
 | R2/S3 Storage | Yes | Yes (5GB free on R2) |
 | Reddit UA | No | N/A |
@@ -120,12 +120,6 @@ Open [http://localhost:3000](http://localhost:3000)
 1. Go to [aistudio.google.com](https://aistudio.google.com)
 2. Click Get API Key → Create API key
 3. Copy to `.env` as `GEMINI_API_KEY`
-
-### Getting Pinecone API Key
-
-1. Sign up at [pinecone.io](https://pinecone.io)
-2. Create a project → API Keys → Copy key
-3. Create an index named `bookmarks` with dimension `1536`
 
 ### Getting Apify Token
 

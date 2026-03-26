@@ -1,8 +1,40 @@
-import { Pinecone } from '@pinecone-database/pinecone';
+import { QdrantClient } from '@qdrant/js-client-rest';
 
-function getIndex() {
-  const pc = new Pinecone({ apiKey: process.env.PINECONE_API_KEY! });
-  return pc.index(process.env.PINECONE_INDEX!);
+const COLLECTION_NAME = process.env.QDRANT_COLLECTION || 'bookmarks';
+const VECTOR_DIMENSION = 1536;
+
+// Singleton client
+let client: QdrantClient | null = null;
+
+function getClient(): QdrantClient {
+  if (!client) {
+    const host = process.env.QDRANT_HOST || 'localhost';
+    const port = parseInt(process.env.QDRANT_PORT || '6333', 10);
+    const apiKey = process.env.QDRANT_API_KEY;
+
+    client = new QdrantClient({
+      host,
+      port,
+      apiKey,
+    });
+  }
+  return client;
+}
+
+// Ensure collection exists with proper configuration
+export async function ensureCollection(): Promise<void> {
+  const qdrant = getClient();
+  try {
+    await qdrant.getCollection(COLLECTION_NAME);
+  } catch {
+    // Collection doesn't exist, create it
+    await qdrant.createCollection(COLLECTION_NAME, {
+      vectors: {
+        size: VECTOR_DIMENSION,
+        distance: 'Cosine',
+      },
+    });
+  }
 }
 
 export async function upsertBookmarkVector(
@@ -13,40 +45,104 @@ export async function upsertBookmarkVector(
   category: string,
   collectionId: string | null,
   embedding: number[]
-) {
-  const index = getIndex();
-  await index.upsert({
-    records: [{
-      id: bookmarkId,
-      values: embedding,
-      metadata: { userId, platform, resource, category, collectionId: collectionId ?? '' }
-    }]
+): Promise<void> {
+  const qdrant = getClient();
+  await ensureCollection();
+
+  await qdrant.upsert(COLLECTION_NAME, {
+    wait: true,
+    points: [
+      {
+        id: bookmarkId,
+        vector: embedding,
+        payload: {
+          userId,
+          platform,
+          resource,
+          category,
+          collectionId: collectionId ?? '',
+        },
+      },
+    ],
   });
+}
+
+export interface SearchFilters {
+  platform?: string;
+  resource?: string;
+  category?: string;
+  collectionId?: string;
+}
+
+export interface SearchResult {
+  id: string;
+  score: number;
+  userId: string;
+  platform: string;
+  resource: string;
+  category: string;
+  collectionId: string;
 }
 
 export async function searchBookmarks(
   userId: string,
   queryEmbedding: number[],
-  filters?: { platform?: string; resource?: string; category?: string; collectionId?: string },
+  filters?: SearchFilters,
   topK = 20
-) {
-  const index = getIndex();
-  const filter: Record<string, any> = { userId: { $eq: userId } };
-  if (filters?.platform)    filter.platform    = { $eq: filters.platform };
-  if (filters?.resource)    filter.resource    = { $eq: filters.resource };
-  if (filters?.category)    filter.category    = { $eq: filters.category };
-  if (filters?.collectionId) filter.collectionId = { $eq: filters.collectionId };
+): Promise<SearchResult[]> {
+  const qdrant = getClient();
+  await ensureCollection();
 
-  const results = await index.query({ vector: queryEmbedding, topK, filter, includeMetadata: true });
-  return results.matches;
+  // Build filter conditions
+  const mustConditions: any[] = [
+    { key: 'userId', match: { value: userId } },
+  ];
+
+  if (filters?.platform) {
+    mustConditions.push({ key: 'platform', match: { value: filters.platform } });
+  }
+  if (filters?.resource) {
+    mustConditions.push({ key: 'resource', match: { value: filters.resource } });
+  }
+  if (filters?.category) {
+    mustConditions.push({ key: 'category', match: { value: filters.category } });
+  }
+  if (filters?.collectionId) {
+    mustConditions.push({ key: 'collectionId', match: { value: filters.collectionId } });
+  }
+
+  const results = await qdrant.search(COLLECTION_NAME, {
+    vector: queryEmbedding,
+    limit: topK,
+    with_payload: true,
+    filter: {
+      must: mustConditions,
+    },
+  });
+
+  return results.map((point: any) => ({
+    id: point.id,
+    score: point.score,
+    userId: point.payload.userId,
+    platform: point.payload.platform,
+    resource: point.payload.resource,
+    category: point.payload.category,
+    collectionId: point.payload.collectionId,
+  }));
 }
 
-export async function deleteBookmarkVector(bookmarkId: string) {
-  const index = getIndex();
-  await index.deleteOne({ id: bookmarkId });
+export async function deleteBookmarkVector(bookmarkId: string): Promise<void> {
+  const qdrant = getClient();
+  await qdrant.delete(COLLECTION_NAME, {
+    points: [bookmarkId],
+  });
 }
 
-export async function deleteUserVectors(userId: string) {
-  const index = getIndex();
-  await index.deleteMany({ filter: { userId: { $eq: userId } } });
+export async function deleteUserVectors(userId: string): Promise<void> {
+  const qdrant = getClient();
+  await qdrant.delete(COLLECTION_NAME, {
+    filter: {
+      must: [{ key: 'userId', match: { value: userId } }],
+    },
+  });
 }
