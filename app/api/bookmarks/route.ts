@@ -60,6 +60,8 @@ export async function POST(req: NextRequest) {
   }
 
   // If collection_id is provided, verify it belongs to this user (authorization check)
+  // Otherwise, use the user's default "General" collection
+  let finalCollectionId: string | null = null;
   if (collection_id) {
     const collection = await db.collection.findFirst({
       where: { id: collection_id, userId: session.user.id }
@@ -67,6 +69,13 @@ export async function POST(req: NextRequest) {
     if (!collection) {
       return NextResponse.json({ error: 'Collection not found' }, { status: 404 });
     }
+    finalCollectionId = collection_id;
+  } else {
+    // Find the user's default collection
+    const defaultCollection = await db.collection.findFirst({
+      where: { userId: session.user.id, isDefault: true }
+    });
+    finalCollectionId = defaultCollection?.id ?? null;
   }
 
   // Check for existing bookmark (user-level deduplication)
@@ -109,7 +118,7 @@ export async function POST(req: NextRequest) {
       processedContentId: contentId,
       originalUrl: url,
       personalNote: personal_note ?? null,
-      collectionId: collection_id ?? null,
+      collectionId: finalCollectionId,
       status: shouldReuse ? 'done' : 'processing',
     }
   });

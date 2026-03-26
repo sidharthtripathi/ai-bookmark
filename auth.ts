@@ -49,5 +49,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
       return session;
     }
+  },
+  events: {
+    async createUser({ user }) {
+      // Create default "General" collection for new users
+      await db.collection.create({
+        data: {
+          userId: user.id!,
+          name: 'General',
+          isDefault: true,
+        }
+      });
+    }
   }
 });

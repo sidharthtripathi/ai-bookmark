@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { BookmarkGrid } from '@/components/BookmarkGrid';
 import { CategoryFilter } from '@/components/CategoryFilter';
 import { PlatformFilter } from '@/components/PlatformFilter';
@@ -16,12 +16,7 @@ export default function DashboardPage() {
   const [category, setCategory] = useState('');
   const [platform, setPlatform] = useState('');
 
-  useEffect(() => {
-    fetchBookmarks();
-  }, [category, platform]);
-
-  async function fetchBookmarks() {
-    setLoading(true);
+  const fetchBookmarks = useCallback(async () => {
     const params = new URLSearchParams();
     if (category) params.set('category', category);
     if (platform) params.set('platform', platform);
@@ -30,7 +25,34 @@ export default function DashboardPage() {
     const data = await res.json();
     setBookmarks(data.bookmarks ?? []);
     setLoading(false);
-  }
+  }, [category, platform]);
+
+  useEffect(() => {
+    fetchBookmarks();
+  }, [fetchBookmarks]);
+
+  // SSE for live processing status updates
+  useEffect(() => {
+    const es = new EventSource('/api/bookmarks/stream');
+
+    es.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.type === 'status_update' && data.bookmarks) {
+          // Check if any bookmark changed status - if so, refresh the list
+          const hasChanges = data.bookmarks.some((updated: any) => {
+            const existing = bookmarks.find(b => b.id === updated.id);
+            return existing && existing.status !== updated.status;
+          });
+          if (hasChanges || data.bookmarks.some((b: any) => b.status === 'done')) {
+            fetchBookmarks();
+          }
+        }
+      } catch {}
+    };
+
+    return () => es.close();
+  }, [bookmarks, fetchBookmarks]);
 
   return (
     <div>
@@ -46,30 +68,8 @@ export default function DashboardPage() {
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[1, 2, 3, 4, 5, 6].map((i) => (
-            <ProcessingCard key={i} />
+            <ProcessingCardSkeleton key={i} />
           ))}
-        </div>
-      ) : bookmarks.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="rounded-full bg-muted p-4 mb-4">
-            <svg
-              className="h-8 w-8 text-muted-foreground"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
-              />
-            </svg>
-          </div>
-          <h3 className="font-semibold text-lg mb-1">No bookmarks yet</h3>
-          <p className="text-sm text-muted-foreground max-w-sm">
-            Paste a URL in the sidebar to save your first bookmark
-          </p>
         </div>
       ) : (
         <BookmarkGrid bookmarks={bookmarks} onUpdate={fetchBookmarks} />
@@ -78,7 +78,7 @@ export default function DashboardPage() {
   );
 }
 
-function ProcessingCard() {
+function ProcessingCardSkeleton() {
   return (
     <Card>
       <CardContent className="p-0">

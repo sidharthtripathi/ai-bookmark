@@ -27,6 +27,7 @@ model Collection {
   name        String
   description String?
   emoji       String?
+  isDefault   Boolean    @default(false)
   createdAt   DateTime   @default(now())
   bookmarks   Bookmark[]
 

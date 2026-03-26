@@ -45,6 +45,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   });
   if (!collection) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
+  // Prevent modifying the default collection
+  if (collection.isDefault) {
+    return NextResponse.json({ error: 'Cannot modify the default collection' }, { status: 403 });
+  }
+
   const updated = await db.collection.update({
     where: { id },
     data: {
@@ -66,6 +71,11 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     where: { id, userId: session.user.id }
   });
   if (!collection) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+  // Prevent deleting the default collection
+  if (collection.isDefault) {
+    return NextResponse.json({ error: 'Cannot delete the default collection' }, { status: 403 });
+  }
 
   await db.collection.delete({ where: { id } });
   return NextResponse.json({ success: true });
