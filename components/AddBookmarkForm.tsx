@@ -20,7 +20,7 @@ export function AddBookmarkForm() {
   const router = useRouter();
   const [url, setUrl] = useState('');
   const [note, setNote] = useState('');
-  const [collectionId, setCollectionId] = useState<string | null>(null);
+  const [selectedCollection, setSelectedCollection] = useState<{ id: string; name: string; emoji?: string | null } | null>(null);
   const [loading, setLoading] = useState(false);
   const [collections, setCollections] = useState<any[]>([]);
 
@@ -51,7 +51,7 @@ export function AddBookmarkForm() {
         body: JSON.stringify({
           url,
           personal_note: note || undefined,
-          collection_id: collectionId || undefined,
+          collection_id: selectedCollection?.id || undefined,
         }),
       });
 
@@ -70,7 +70,7 @@ export function AddBookmarkForm() {
 
       setUrl('');
       setNote('');
-      setCollectionId(null);
+      setSelectedCollection(null);
       router.refresh();
     } catch {
       toast.error('Error', {
@@ -122,15 +122,27 @@ export function AddBookmarkForm() {
         <Label htmlFor="bookmark-collection" className="sr-only">
           Collection
         </Label>
-        <Select value={collectionId ?? '__none__'} onValueChange={(v) => setCollectionId(v === '__none__' ? null : v)}>
+        <Select value={selectedCollection?.id ?? '__none__'} onValueChange={(v) => {
+          if (v === '__none__') {
+            setSelectedCollection(null);
+          } else {
+            const col = collections.find(c => c.id === v);
+            if (col) {
+              setSelectedCollection(col);
+            }
+          }
+        }}>
           <SelectTrigger id="bookmark-collection" className="w-full">
-            <SelectValue placeholder="No collection" />
+            {selectedCollection ? (
+              selectedCollection.name
+            ) : (
+              <span className="text-muted-foreground">No collection</span>
+            )}
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__none__">No collection</SelectItem>
             {collections.map((c) => (
               <SelectItem key={c.id} value={c.id}>
-                {c.emoji ? `${c.emoji} ` : ''}
                 {c.name}
               </SelectItem>
             ))}

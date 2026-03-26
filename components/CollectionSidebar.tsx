@@ -11,18 +11,12 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from '@/components/ui/sheet';
-import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   DropdownMenu,
@@ -37,10 +31,8 @@ export function CollectionSidebar() {
   const [collections, setCollections] = useState<any[]>([]);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
-  const [newEmoji, setNewEmoji] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
-  const [editEmoji, setEditEmoji] = useState('');
 
   useEffect(() => {
     fetchCollections();
@@ -66,13 +58,11 @@ export function CollectionSidebar() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: newName.trim(),
-          emoji: newEmoji || undefined,
         }),
       });
 
       if (res.ok) {
         setNewName('');
-        setNewEmoji('');
         setCreating(false);
         fetchCollections();
         toast('Collection created');
@@ -90,7 +80,7 @@ export function CollectionSidebar() {
       const res = await fetch(`/api/collections/${editingId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: editName.trim(), emoji: editEmoji || undefined }),
+        body: JSON.stringify({ name: editName.trim() }),
       });
 
       if (res.ok) {
@@ -122,27 +112,19 @@ export function CollectionSidebar() {
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
             Collections
           </h3>
-          <Sheet open={creating} onOpenChange={setCreating}>
-            <SheetTrigger>
-              <Button variant="ghost" size="icon" className="h-6 w-6">
-                <Plus className="h-3.5 w-3.5" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="bottom" className="rounded-t-xl">
-              <SheetHeader>
-                <SheetTitle>New Collection</SheetTitle>
-              </SheetHeader>
-              <form onSubmit={handleCreate} className="space-y-4 mt-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="emoji">Emoji (optional)</Label>
-                  <Input
-                    id="emoji"
-                    value={newEmoji}
-                    onChange={(e) => setNewEmoji(e.target.value)}
-                    placeholder="📚"
-                    maxLength={2}
-                  />
-                </div>
+          <Dialog open={creating} onOpenChange={setCreating}>
+            <DialogTrigger
+              render={
+                <Button variant="ghost" size="icon" className="h-6 w-6" />
+              }
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>New Collection</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleCreate} className="space-y-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="collection-name">Name</Label>
                   <Input
@@ -154,7 +136,7 @@ export function CollectionSidebar() {
                     required
                   />
                 </div>
-                <div className="flex gap-2 justify-end">
+                <DialogFooter>
                   <Button
                     type="button"
                     variant="outline"
@@ -163,10 +145,10 @@ export function CollectionSidebar() {
                     Cancel
                   </Button>
                   <Button type="submit">Create</Button>
-                </div>
+                </DialogFooter>
               </form>
-            </SheetContent>
-          </Sheet>
+            </DialogContent>
+          </Dialog>
         </div>
 
         <ScrollArea className="h-40">
@@ -190,7 +172,6 @@ export function CollectionSidebar() {
                   )}
                 >
                   <Link href={href} className="flex-1 truncate">
-                    <span className="mr-1">{c.emoji ?? ''}</span>
                     {c.name}
                     {c._count?.bookmarks > 0 && (
                       <span className="ml-1 text-xs text-muted-foreground/60">
@@ -200,21 +181,22 @@ export function CollectionSidebar() {
                   </Link>
 
                   <DropdownMenu>
-                    <DropdownMenuTrigger>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <MoreHorizontal className="h-3.5 w-3.5" />
-                      </Button>
+                    <DropdownMenuTrigger
+                      render={
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                        />
+                      }
+                    >
+                      <MoreHorizontal className="h-3.5 w-3.5" />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem
                         onClick={() => {
                           setEditingId(c.id);
                           setEditName(c.name);
-                          setEditEmoji(c.emoji ?? '');
                         }}
                       >
                         <Pencil className="h-4 w-4 mr-2" />
@@ -243,16 +225,6 @@ export function CollectionSidebar() {
             <DialogTitle>Edit Collection</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleEdit} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="edit-emoji">Emoji</Label>
-              <Input
-                id="edit-emoji"
-                value={editEmoji}
-                onChange={(e) => setEditEmoji(e.target.value)}
-                placeholder="📚"
-                maxLength={2}
-              />
-            </div>
             <div className="space-y-1.5">
               <Label htmlFor="edit-name">Name</Label>
               <Input

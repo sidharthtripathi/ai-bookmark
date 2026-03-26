@@ -1,10 +1,10 @@
 import { auth } from '@/auth';
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import { CollectionSidebar } from '@/components/CollectionSidebar';
 import { AddBookmarkForm } from '@/components/AddBookmarkForm';
-import Link from 'next/link';
-import { signOut } from 'next-auth/react';
-import { Button } from '@/components/ui/button';
+import { SignOutButton } from '@/components/SignOutButton';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -14,8 +14,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <div className="flex min-h-screen bg-background">
       <aside className="w-64 bg-sidebar border-r border-sidebar-border flex flex-col">
-        <div className="p-4 border-b border-sidebar-border">
+        <div className="p-4 border-b border-sidebar-border flex items-center justify-between">
           <h1 className="text-lg font-bold text-sidebar-foreground">AI Bookmark Saver</h1>
+          <ThemeToggle />
         </div>
 
         <div className="p-4">
@@ -52,14 +53,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
               <p className="text-xs text-muted-foreground truncate">{session.user.email}</p>
             </div>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full"
-            onClick={() => signOut({ callbackUrl: '/login' })}
-          >
-            Sign Out
-          </Button>
+          <SignOutButton />
         </div>
       </aside>
 
