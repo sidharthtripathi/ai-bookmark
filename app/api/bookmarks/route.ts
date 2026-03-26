@@ -15,11 +15,13 @@ export async function GET(req: NextRequest) {
   const category = searchParams.get('category');
   const platform = searchParams.get('platform');
   const resource = searchParams.get('resource');
+  const status = searchParams.get('status');
   const page = Math.max(1, parseInt(searchParams.get('page') ?? '1') || 1);
   const limit = Math.min(MAX_LIMIT, Math.max(1, parseInt(searchParams.get('limit') ?? '20') || 20));
   const skip = (page - 1) * limit;
 
   const where: any = { userId: session.user.id };
+  if (status) where.status = status;
   if (category) where.processedContent = { category };
   if (platform) where.processedContent = { ...where.processedContent, platform };
   if (resource) where.processedContent = { ...where.processedContent, resource };
@@ -67,7 +69,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Check for existing bookmark
+  // Check for existing bookmark (user-level deduplication)
   const existing = await db.bookmark.findFirst({
     where: { userId: session.user.id, processedContent: { normalisedUrl: classified.normalised } }
   });
@@ -76,38 +78,45 @@ export async function POST(req: NextRequest) {
   }
 
   // Cache lookup — find or create ProcessedContent
-  let processedContent = await db.processedContent.findUnique({
+  // IMPORTANT: Only reuse successfully processed content.
+  // Failed/pending content is NOT reused across users — create fresh to allow retry.
+  const cachedContent = await db.processedContent.findUnique({
     where: { normalisedUrl: classified.normalised }
   });
 
-  if (!processedContent) {
-    // Cache miss
-    processedContent = await db.processedContent.create({
-      data: {
-        normalisedUrl: classified.normalised,
-        platform: classified.platform,
-        resource: 'resource' in classified ? (classified as any).resource : 'article',
-        status: 'pending',
-      }
-    });
-    await enqueueProcessing(processedContent.id);
+  const shouldReuse = cachedContent && cachedContent.status === 'done';
+
+  // Create bookmark with cached content or fresh content
+  const contentId = shouldReuse
+    ? cachedContent!.id
+    : (await db.processedContent.create({
+        data: {
+          normalisedUrl: classified.normalised,
+          platform: classified.platform,
+          resource: 'resource' in classified ? (classified as any).resource : 'article',
+          status: 'pending',
+        }
+      })).id;
+
+  if (!shouldReuse) {
+    await enqueueProcessing(contentId);
   }
 
   // Create bookmark
   const bookmark = await db.bookmark.create({
     data: {
       userId: session.user.id,
-      processedContentId: processedContent.id,
+      processedContentId: contentId,
       originalUrl: url,
       personalNote: personal_note ?? null,
       collectionId: collection_id ?? null,
-      status: processedContent.status === 'done' ? 'done' : 'processing',
+      status: shouldReuse ? 'done' : 'processing',
     }
   });
 
-  // If cache hit with done status, still need to upsert the Pinecone vector for this bookmark
-  if (processedContent.status === 'done' && processedContent.embeddingValues) {
-    await enqueuePineconeUpsert(bookmark.id, processedContent.id);
+  // If reusing done content, still need to upsert the Pinecone vector for this bookmark
+  if (shouldReuse && cachedContent!.embeddingValues) {
+    await enqueuePineconeUpsert(bookmark.id, contentId);
   }
 
   return NextResponse.json({ id: bookmark.id, status: bookmark.status }, { status: 201 });

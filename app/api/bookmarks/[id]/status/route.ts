@@ -12,7 +12,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     select: {
       id: true,
       status: true,
-      processedContent: { select: { title: true, thumbnailUrl: true } }
+      errorMessage: true,
+      originalUrl: true,
+      processedContent: {
+        select: {
+          title: true,
+          thumbnailUrl: true,
+          platform: true,
+          resource: true,
+          normalisedUrl: true,
+        }
+      }
     }
   });
 
@@ -21,6 +31,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   return NextResponse.json({
     id: bookmark.id,
     status: bookmark.status,
+    errorMessage: bookmark.errorMessage,
+    originalUrl: bookmark.originalUrl,
+    platform: bookmark.processedContent?.platform ?? null,
+    resource: bookmark.processedContent?.resource ?? null,
     title: bookmark.processedContent?.title ?? null,
     thumbnailUrl: bookmark.processedContent?.thumbnailUrl ?? null,
   });

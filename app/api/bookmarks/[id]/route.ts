@@ -80,12 +80,23 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
   const { id } = await params;
   const bookmark = await db.bookmark.findFirst({
-    where: { id, userId: session.user.id }
+    where: { id, userId: session.user.id },
+    include: { processedContent: { include: { bookmarks: { select: { id: true } } } } }
   });
   if (!bookmark) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
+  const processedContentId = bookmark.processedContentId;
+  const otherBookmarksCount = bookmark.processedContent.bookmarks.filter(b => b.id !== bookmark.id).length;
+
   await deleteBookmarkVector(id);
   await db.bookmark.delete({ where: { id } });
+
+  // If this was the last bookmark referencing this ProcessedContent, clean it up
+  if (otherBookmarksCount === 0) {
+    await db.processedContent.delete({ where: { id: processedContentId } }).catch(() => {
+      // Ignore if already deleted (race condition)
+    });
+  }
 
   return NextResponse.json({ success: true });
 }
