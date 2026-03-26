@@ -37,8 +37,8 @@ npm install
 ### 3. Set Up Database
 
 ```bash
-npm run db:generate  # Generate Prisma client
-npm run db:push      # Push schema to database
+npx prisma generate  # Generate Prisma client
+npx prisma db push    # Push schema to database
 ```
 
 ### 4. Configure Environment
@@ -81,11 +81,7 @@ R2_PUBLIC_URL="https://your-public-url.com"
 REDDIT_USER_AGENT="BookmarkApp/1.0 (by /u/your-username)"
 ```
 
-### 5. Start Qdrant
-
-Qdrant is started automatically with `docker compose up -d` (step 1). No additional setup required - the collection is created automatically on first use.
-
-### 6. Run
+### 5. Run
 
 ```bash
 # Terminal 1: Next.js dev server
@@ -166,17 +162,21 @@ lib/
 ├── db.ts             # Prisma client singleton
 ├── queue.ts          # BullMQ queue
 ├── storage.ts        # R2 upload/download
-├── embeddings.ts     # Gemini embedding generation
-├── pinecone.ts       # Vector DB operations
-├── url-pipeline/     # URL extraction, redirect resolution, classification
-├── extractors/       # Platform-specific content extractors
-│   ├── web.ts
-│   ├── youtube-video.ts
-│   ├── youtube-channel.ts
-│   ├── twitter.ts
-│   ├── instagram.ts
-│   └── reddit.ts
-└── url-validator.ts  # SSRF protection
+├── embeddings.ts      # Gemini embedding generation
+├── pinecone.ts        # Qdrant vector DB operations
+├── url-pipeline/     # URL extraction, redirect resolution, SSRF validation, classification
+│   ├── index.ts
+│   ├── extract-url.ts
+│   ├── resolve-redirects.ts
+│   ├── classify-url.ts
+│   └── ssrf-validator.ts
+└── extractors/       # Platform-specific content extractors
+    ├── web.ts
+    ├── youtube-video.ts
+    ├── youtube-channel.ts
+    ├── twitter.ts
+    ├── instagram.ts
+    └── reddit.ts
 
 worker/
 ├── index.ts          # BullMQ worker entry
