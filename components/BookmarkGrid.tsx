@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
 import { AlertTriangle, Trash2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useDeleteBookmark, useUpdateBookmark } from '@/lib/hooks';
 
 interface BookmarkGridProps {
   bookmarks: any[];
@@ -15,6 +16,9 @@ interface BookmarkGridProps {
 export function BookmarkGrid({ bookmarks, onUpdate }: BookmarkGridProps) {
   const [liveFailed, setLiveFailed] = useState<any[]>([]);
   const [retryingIds, setRetryingIds] = useState<Set<string>>(new Set());
+
+  const deleteBookmark = useDeleteBookmark();
+  const updateBookmark = useUpdateBookmark();
 
   useEffect(() => {
     const es = new EventSource('/api/bookmarks/stream');
@@ -37,7 +41,6 @@ export function BookmarkGrid({ bookmarks, onUpdate }: BookmarkGridProps) {
     (b) => b.status === 'processing' || b.status === 'pending'
   );
   const failed = bookmarks.filter((b) => b.status === 'failed');
-  // Merge server failed with SSE live failed (preferring most recent)
   const allFailed = [...failed];
   liveFailed.forEach(lf => {
     if (!allFailed.find(f => f.id === lf.id)) {
@@ -152,8 +155,10 @@ function FailedCard({
   isRetrying?: boolean;
   onRetry?: (id: string) => void;
 }) {
+  const deleteBookmark = useDeleteBookmark();
+
   async function handleDelete() {
-    await fetch(`/api/bookmarks/${bookmark.id}`, { method: 'DELETE' });
+    await deleteBookmark.mutateAsync(bookmark.id);
     onDelete?.();
   }
 
@@ -180,6 +185,7 @@ function FailedCard({
             size="sm"
             className="flex-1 text-destructive border-destructive/50 hover:bg-destructive/10"
             onClick={handleDelete}
+            disabled={deleteBookmark.isPending}
           >
             <Trash2 className="h-4 w-4 mr-1" />
             Discard

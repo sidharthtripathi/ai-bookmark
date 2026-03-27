@@ -73,7 +73,9 @@ model Bookmark {
 
   originalUrl        String
   personalNote       String?
-  categoryOverride   String?
+
+  // User-provided tags (merged with AI keyTopics for display)
+  tags               String[]
 
   status             String    @default("processing")
   errorMessage       String?

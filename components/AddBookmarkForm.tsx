@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { Link2, StickyNote, Loader2, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,57 +13,34 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { useCollections, useCreateCollection, useCreateBookmark } from '@/lib/hooks';
 
 export function AddBookmarkForm() {
-  const router = useRouter();
   const [url, setUrl] = useState('');
   const [note, setNote] = useState('');
-  const [selectedCollection, setSelectedCollection] = useState<{ id: string; name: string; isDefault?: boolean } | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [collections, setCollections] = useState<any[]>([]);
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newCollectionName, setNewCollectionName] = useState('');
-  const [creatingCollection, setCreatingCollection] = useState(false);
 
-  useEffect(() => {
-    fetchCollections();
-  }, []);
+  const { data: collections = [], isLoading: collectionsLoading } = useCollections();
+  const createCollection = useCreateCollection();
+  const createBookmark = useCreateBookmark();
 
-  async function fetchCollections() {
-    try {
-      const res = await fetch('/api/collections');
-      const data = await res.json();
-      setCollections(data);
-    } catch {
-      // silently fail
-    }
-  }
+  // Auto-select default collection when collections load
+  const selectedCollection = selectedCollectionId
+    ? collections.find(c => c.id === selectedCollectionId)
+    : collections.find(c => c.isDefault) ?? null;
 
-  async function handleCreateCollection(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleCreateCollection() {
     if (!newCollectionName.trim()) return;
 
-    setCreatingCollection(true);
     try {
-      const res = await fetch('/api/collections', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newCollectionName.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error('Failed to create collection', { description: data.error });
-        return;
-      }
-      setCollections(prev => [data, ...prev]);
-      setSelectedCollection(data);
+      await createCollection.mutateAsync({ name: newCollectionName.trim() });
       setNewCollectionName('');
       setShowCreateForm(false);
       toast.success('Collection created');
-    } catch {
-      toast.error('Failed to create collection');
-    } finally {
-      setCreatingCollection(false);
+    } catch (error: any) {
+      toast.error('Failed to create collection', { description: error.message });
     }
   }
 
@@ -72,27 +48,12 @@ export function AddBookmarkForm() {
     e.preventDefault();
     if (!url.trim()) return;
 
-    setLoading(true);
-
     try {
-      const res = await fetch('/api/bookmarks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url,
-          personal_note: note || undefined,
-          collection_id: selectedCollection?.id || undefined,
-        }),
+      await createBookmark.mutateAsync({
+        url,
+        personal_note: note || undefined,
+        collection_id: selectedCollection?.id || undefined,
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        toast.error('Failed to save bookmark', {
-          description: data.message || data.error || 'Something went wrong',
-        });
-        return;
-      }
 
       toast('Bookmark saved', {
         description: 'Your bookmark is being processed with AI.',
@@ -100,14 +61,11 @@ export function AddBookmarkForm() {
 
       setUrl('');
       setNote('');
-      setSelectedCollection(null);
-      router.refresh();
-    } catch {
-      toast.error('Error', {
-        description: 'Something went wrong. Please try again.',
+      setSelectedCollectionId(null);
+    } catch (error: any) {
+      toast.error('Failed to save bookmark', {
+        description: error.message,
       });
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -149,7 +107,7 @@ export function AddBookmarkForm() {
       </div>
 
       {showCreateForm ? (
-        <form onSubmit={handleCreateCollection} className="space-y-2">
+        <div className="space-y-2">
           <div className="flex items-center gap-2">
             <Input
               value={newCollectionName}
@@ -159,11 +117,12 @@ export function AddBookmarkForm() {
               autoFocus
             />
             <Button
-              type="submit"
+              type="button"
               size="sm"
-              disabled={creatingCollection || !newCollectionName.trim()}
+              disabled={createCollection.isPending || !newCollectionName.trim()}
+              onClick={handleCreateCollection}
             >
-              {creatingCollection ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create'}
+              {createCollection.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create'}
             </Button>
             <Button
               type="button"
@@ -177,34 +136,34 @@ export function AddBookmarkForm() {
               <X className="h-4 w-4" />
             </Button>
           </div>
-        </form>
+        </div>
       ) : (
         <div className="space-y-1.5">
           <Label htmlFor="bookmark-collection" className="sr-only">
             Collection
           </Label>
           <Select
-            value={selectedCollection?.id ?? '__none__'}
+            value={selectedCollection?.id ?? selectedCollectionId ?? '__none__'}
             onValueChange={(v) => {
               if (v === '__none__') {
-                setSelectedCollection(null);
+                setSelectedCollectionId(null);
               } else if (v === '__create__') {
                 setShowCreateForm(true);
               } else {
-                const col = collections.find(c => c.id === v);
-                if (col) setSelectedCollection(col);
+                setSelectedCollectionId(v);
               }
             }}
+            disabled={collectionsLoading}
           >
             <SelectTrigger id="bookmark-collection" className="w-full">
               {selectedCollection ? (
                 selectedCollection.name
               ) : (
-                <span className="text-muted-foreground">No collection</span>
+                <span className="text-muted-foreground">General</span>
               )}
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__none__">No collection</SelectItem>
+              <SelectItem value="__none__">General</SelectItem>
               {collections.map((c) => (
                 <SelectItem key={c.id} value={c.id}>
                   {c.name}
@@ -224,9 +183,9 @@ export function AddBookmarkForm() {
       <Button
         type="submit"
         className="w-full"
-        disabled={loading || !url.trim()}
+        disabled={createBookmark.isPending || !url.trim()}
       >
-        {loading ? (
+        {createBookmark.isPending ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             Saving...

@@ -12,19 +12,24 @@ export async function GET(req: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const category = searchParams.get('category');
   const platform = searchParams.get('platform');
   const resource = searchParams.get('resource');
   const status = searchParams.get('status');
+  const tags = searchParams.get('tags'); // comma-separated tags for OR logic
   const page = Math.max(1, parseInt(searchParams.get('page') ?? '1') || 1);
   const limit = Math.min(MAX_LIMIT, Math.max(1, parseInt(searchParams.get('limit') ?? '20') || 20));
   const skip = (page - 1) * limit;
 
   const where: any = { userId: session.user.id };
   if (status) where.status = status;
-  if (category) where.processedContent = { category };
-  if (platform) where.processedContent = { ...where.processedContent, platform };
+  if (platform) where.processedContent = { platform };
   if (resource) where.processedContent = { ...where.processedContent, resource };
+  if (tags) {
+    const tagArray = tags.split(',').map(t => t.trim()).filter(Boolean);
+    if (tagArray.length > 0) {
+      where.tags = { hasSome: tagArray };
+    }
+  }
 
   const [bookmarks, total] = await Promise.all([
     db.bookmark.findMany({

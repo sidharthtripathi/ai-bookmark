@@ -1,15 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Plus, MoreHorizontal, Trash2, Pencil } from 'lucide-react';
+import { Plus, MoreHorizontal, Trash2, Pencil, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import {
   Dialog,
   DialogContent,
@@ -25,50 +24,32 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
+import { useCollections, useCreateCollection, useDeleteCollection, useUpdateCollection } from '@/lib/hooks';
 
 export function CollectionSidebar() {
   const pathname = usePathname();
-  const [collections, setCollections] = useState<any[]>([]);
+
+  const { data: collections = [], isLoading } = useCollections();
+  const createCollection = useCreateCollection();
+  const deleteCollection = useDeleteCollection();
+  const updateCollection = useUpdateCollection();
+
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
-
-  useEffect(() => {
-    fetchCollections();
-  }, []);
-
-  async function fetchCollections() {
-    try {
-      const res = await fetch('/api/collections');
-      const data = await res.json();
-      setCollections(data);
-    } catch {
-      // silently fail
-    }
-  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     if (!newName.trim()) return;
 
     try {
-      const res = await fetch('/api/collections', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newName.trim(),
-        }),
-      });
-
-      if (res.ok) {
-        setNewName('');
-        setCreating(false);
-        fetchCollections();
-        toast('Collection created');
-      }
-    } catch {
-      toast.error('Failed to create collection');
+      await createCollection.mutateAsync({ name: newName.trim() });
+      setNewName('');
+      setCreating(false);
+      toast.success('Collection created');
+    } catch (error: any) {
+      toast.error('Failed to create collection', { description: error.message });
     }
   }
 
@@ -77,31 +58,20 @@ export function CollectionSidebar() {
     if (!editName.trim() || !editingId) return;
 
     try {
-      const res = await fetch(`/api/collections/${editingId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: editName.trim() }),
-      });
-
-      if (res.ok) {
-        setEditingId(null);
-        fetchCollections();
-        toast('Collection updated');
-      }
-    } catch {
-      toast.error('Failed to update collection');
+      await updateCollection.mutateAsync({ id: editingId, data: { name: editName.trim() } });
+      setEditingId(null);
+      toast.success('Collection updated');
+    } catch (error: any) {
+      toast.error('Failed to update collection', { description: error.message });
     }
   }
 
   async function handleDelete(id: string) {
     try {
-      const res = await fetch(`/api/collections/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        fetchCollections();
-        toast('Collection deleted');
-      }
-    } catch {
-      toast.error('Failed to delete collection');
+      await deleteCollection.mutateAsync(id);
+      toast.success('Collection deleted');
+    } catch (error: any) {
+      toast.error('Failed to delete collection', { description: error.message });
     }
   }
 
@@ -144,7 +114,10 @@ export function CollectionSidebar() {
                   >
                     Cancel
                   </Button>
-                  <Button type="submit">Create</Button>
+                  <Button type="submit" disabled={createCollection.isPending}>
+                    {createCollection.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    Create
+                  </Button>
                 </DialogFooter>
               </form>
             </DialogContent>
@@ -153,7 +126,10 @@ export function CollectionSidebar() {
 
         <ScrollArea className="h-40">
           <div className="space-y-0.5">
-            {collections.length === 0 && (
+            {isLoading && (
+              <p className="text-xs text-muted-foreground px-2 py-1.5">Loading...</p>
+            )}
+            {!isLoading && collections.length === 0 && (
               <p className="text-xs text-muted-foreground px-2 py-1.5">
                 No collections yet
               </p>
@@ -173,9 +149,9 @@ export function CollectionSidebar() {
                 >
                   <Link href={href} className="flex-1 truncate">
                     {c.name}
-                    {c._count?.bookmarks > 0 && (
+                    {(c._count?.bookmarks ?? 0) > 0 && (
                       <span className="ml-1 text-xs text-muted-foreground/60">
-                        {c._count.bookmarks}
+                        {c._count?.bookmarks}
                       </span>
                     )}
                   </Link>
@@ -206,6 +182,7 @@ export function CollectionSidebar() {
                         <DropdownMenuItem
                           variant="destructive"
                           onClick={() => handleDelete(c.id)}
+                          disabled={deleteCollection.isPending}
                         >
                           <Trash2 className="h-4 w-4 mr-2" />
                           Delete
@@ -245,7 +222,10 @@ export function CollectionSidebar() {
               >
                 Cancel
               </Button>
-              <Button type="submit">Save</Button>
+              <Button type="submit" disabled={updateCollection.isPending}>
+                {updateCollection.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Save
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>

@@ -21,6 +21,7 @@ interface BookmarkCardProps {
     originalUrl: string;
     personalNote?: string | null;
     status: string;
+    tags?: string[];
     collection?: { id: string; name: string; emoji?: string | null } | null;
     processedContent: {
       title?: string | null;
@@ -110,16 +111,21 @@ export function BookmarkCard({ bookmark, onDelete, onUpdate }: BookmarkCardProps
           <p className="text-xs text-primary italic">&ldquo;{bookmark.personalNote}&rdquo;</p>
         )}
 
-        {/* Topics */}
-        {pc.keyTopics && pc.keyTopics.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {pc.keyTopics.slice(0, 3).map((topic) => (
-              <Badge key={topic} variant="outline" className="text-xs">
-                {topic}
-              </Badge>
-            ))}
-          </div>
-        )}
+        {/* Tags (user tags + AI keyTopics) */}
+        {(() => {
+          const allTags = [...(bookmark.tags ?? []), ...(pc.keyTopics ?? [])];
+          const uniqueTags = [...new Set(allTags)].slice(0, 5);
+          if (uniqueTags.length === 0) return null;
+          return (
+            <div className="flex flex-wrap gap-1">
+              {uniqueTags.map((tag) => (
+                <Badge key={tag} variant="outline" className="text-xs">
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+          );
+        })()}
 
         <Separator />
 

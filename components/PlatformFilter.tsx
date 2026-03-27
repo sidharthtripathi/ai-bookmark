@@ -23,10 +23,12 @@ const LABELS: Record<string, string> = {
 };
 
 export function PlatformFilter({ platforms, selected, onSelect }: PlatformFilterProps) {
+  const displayText = selected ? (LABELS[selected] ?? selected) : 'All Platforms';
+
   return (
     <Select value={selected || '__none__'} onValueChange={(v) => { if (v) onSelect(v === '__none__' ? '' : v); }}>
       <SelectTrigger className="w-[160px]">
-        <SelectValue placeholder="All Platforms" />
+        <SelectValue>{displayText}</SelectValue>
       </SelectTrigger>
       <SelectContent>
         <SelectItem value="__none__">All Platforms</SelectItem>

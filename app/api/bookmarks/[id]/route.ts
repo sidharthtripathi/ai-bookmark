@@ -17,11 +17,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   return NextResponse.json(bookmark);
 }
 
-const VALID_CATEGORIES = [
-  'Technology', 'Science', 'Health', 'Finance', 'Business', 'Design',
-  'Education', 'Entertainment', 'News', 'Food', 'Travel', 'Sports',
-  'Philosophy', 'History', 'Art', 'Other'
-];
 const MAX_FIELD_LENGTH = 10000;
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -30,21 +25,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { id } = await params;
   const body = await req.json();
-  const { personal_note, category_override, collection_id } = body;
+  const { personal_note, collection_id, add_tags, remove_tags } = body;
 
   // Enforce field length limits
   if (personal_note !== undefined && personal_note !== null && personal_note.length > MAX_FIELD_LENGTH) {
     return NextResponse.json({ error: 'Personal note too long' }, { status: 400 });
-  }
-
-  // Validate category_override against allowed values
-  if (category_override !== undefined && category_override !== null) {
-    if (!VALID_CATEGORIES.includes(category_override)) {
-      return NextResponse.json(
-        { error: `Invalid category. Must be one of: ${VALID_CATEGORIES.join(', ')}` },
-        { status: 400 }
-      );
-    }
   }
 
   // If collection_id is provided, verify it belongs to this user
@@ -62,13 +47,28 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   });
   if (!bookmark) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
+  // Build update data
+  const updateData: any = {
+    personalNote: personal_note !== undefined ? personal_note : undefined,
+    collectionId: collection_id !== undefined ? collection_id : undefined,
+  };
+
+  // Handle tag updates
+  if (add_tags || remove_tags) {
+    const currentTags = bookmark.tags ?? [];
+    let newTags = currentTags;
+    if (add_tags && Array.isArray(add_tags)) {
+      newTags = [...new Set([...currentTags, ...add_tags])];
+    }
+    if (remove_tags && Array.isArray(remove_tags)) {
+      newTags = newTags.filter(t => !remove_tags.includes(t));
+    }
+    updateData.tags = newTags;
+  }
+
   const updated = await db.bookmark.update({
     where: { id },
-    data: {
-      personalNote: personal_note !== undefined ? personal_note : undefined,
-      categoryOverride: category_override !== undefined ? category_override : undefined,
-      collectionId: collection_id !== undefined ? collection_id : undefined,
-    }
+    data: updateData,
   });
 
   return NextResponse.json(updated);
