@@ -3,8 +3,6 @@
 import { useState, useCallback } from 'react';
 import { BookmarkGrid } from '@/components/BookmarkGrid';
 import { PlatformFilter } from '@/components/PlatformFilter';
-import { Card, CardContent } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Tag, X } from 'lucide-react';
 import { useBookmarks } from '@/lib/hooks';
 
@@ -43,7 +41,6 @@ export default function DashboardPage() {
   }
 
   // SSE for live processing status updates
-  // Note: This is a simple implementation. In production, you might want to handle this via React Query's SSE integration
   const handleUpdate = useCallback(() => {
     refetch();
   }, [refetch]);
@@ -104,33 +101,8 @@ export default function DashboardPage() {
         </p>
       )}
 
-      {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <ProcessingCardSkeleton key={i} />
-          ))}
-        </div>
-      ) : (
-        <BookmarkGrid bookmarks={bookmarks} onUpdate={handleUpdate} />
-      )}
+      {/* Always render BookmarkGrid - it handles its own loading state internally */}
+      <BookmarkGrid bookmarks={bookmarks} isLoading={isLoading} onUpdate={handleUpdate} />
     </div>
-  );
-}
-
-function ProcessingCardSkeleton() {
-  return (
-    <Card>
-      <CardContent className="p-0">
-        <Skeleton className="aspect-video rounded-none" />
-        <div className="p-3 space-y-2">
-          <Skeleton className="h-4 w-3/4" />
-          <Skeleton className="h-3 w-1/2" />
-          <div className="flex gap-1">
-            <Skeleton className="h-5 w-12" />
-            <Skeleton className="h-5 w-16" />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
   );
 }

@@ -10,10 +10,11 @@ import { useDeleteBookmark, useUpdateBookmark } from '@/lib/hooks';
 
 interface BookmarkGridProps {
   bookmarks: any[];
+  isLoading?: boolean;
   onUpdate?: () => void;
 }
 
-export function BookmarkGrid({ bookmarks, onUpdate }: BookmarkGridProps) {
+export function BookmarkGrid({ bookmarks, isLoading = false, onUpdate }: BookmarkGridProps) {
   const [liveFailed, setLiveFailed] = useState<any[]>([]);
   const [retryingIds, setRetryingIds] = useState<Set<string>>(new Set());
 
@@ -47,6 +48,17 @@ export function BookmarkGrid({ bookmarks, onUpdate }: BookmarkGridProps) {
       allFailed.push(lf);
     }
   });
+
+  // Show skeletons when loading and no bookmarks yet
+  if (isLoading && bookmarks.length === 0) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {[1, 2, 3, 4, 5, 6].map((i) => (
+          <ProcessingCardSkeleton key={i} />
+        ))}
+      </div>
+    );
+  }
 
   if (bookmarks.length === 0 && liveFailed.length === 0) {
     return (
