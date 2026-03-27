@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo, memo } from 'react';
 import { BookmarkGrid } from '@/components/BookmarkGrid';
 import { PlatformFilter } from '@/components/PlatformFilter';
 import { Tag, X } from 'lucide-react';
@@ -8,37 +8,41 @@ import { useBookmarks } from '@/lib/hooks';
 
 const PLATFORMS = ['youtube', 'twitter', 'instagram', 'reddit', 'web'];
 
-export default function DashboardPage() {
+function DashboardPageComponent() {
   const [platform, setPlatform] = useState('');
   const [tagInput, setTagInput] = useState('');
   const [activeTags, setActiveTags] = useState<string[]>([]);
 
-  // Build query filters - all tags with OR logic
-  const filters = {
+  // Build query filters - stable reference to prevent unnecessary refetches
+  const filters = useMemo(() => ({
     platform: platform || undefined,
     tags: activeTags.length > 0 ? activeTags : undefined,
-  };
+  }), [platform, activeTags]);
 
   const { data, isLoading, refetch } = useBookmarks(filters);
   const bookmarks = data?.bookmarks ?? [];
 
   // Handle tag input - space creates a tag, enter to search
-  function handleTagKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+  const handleTagKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === ' ' && tagInput.trim()) {
       e.preventDefault();
       const newTag = tagInput.trim().toLowerCase();
       if (!activeTags.includes(newTag)) {
-        setActiveTags([...activeTags, newTag]);
+        setActiveTags(prev => [...prev, newTag]);
       }
       setTagInput('');
     } else if (e.key === 'Backspace' && !tagInput && activeTags.length > 0) {
-      setActiveTags(activeTags.slice(0, -1));
+      setActiveTags(prev => prev.slice(0, -1));
     }
-  }
+  }, [tagInput, activeTags]);
 
-  function removeTag(tag: string) {
-    setActiveTags(activeTags.filter(t => t !== tag));
-  }
+  const removeTag = useCallback((tag: string) => {
+    setActiveTags(prev => prev.filter(t => t !== tag));
+  }, []);
+
+  const handlePlatformChange = useCallback((value: string) => {
+    setPlatform(value);
+  }, []);
 
   // SSE for live processing status updates
   const handleUpdate = useCallback(() => {
@@ -52,7 +56,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="flex gap-4 mb-6 flex-wrap">
-        <PlatformFilter platforms={PLATFORMS} selected={platform} onSelect={setPlatform} />
+        <PlatformFilter platforms={PLATFORMS} selected={platform} onSelect={handlePlatformChange} />
 
         {/* Tag input with token display */}
         <div className="relative flex-1 min-w-[200px] max-w-xs">
@@ -106,3 +110,9 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+// Memoize to prevent re-renders when parent doesn't need to update
+export const DashboardPage = memo(DashboardPageComponent);
+
+// Default export for Next.js page routing
+export default DashboardPage;

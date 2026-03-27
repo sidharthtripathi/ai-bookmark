@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Plus, MoreHorizontal, Trash2, Pencil, Loader2 } from 'lucide-react';
@@ -26,7 +26,7 @@ import {
 import { toast } from 'sonner';
 import { useCollections, useCreateCollection, useDeleteCollection, useUpdateCollection } from '@/lib/hooks';
 
-export function CollectionSidebar() {
+export const CollectionSidebar = memo(function CollectionSidebar() {
   const pathname = usePathname();
 
   const { data: collections = [], isLoading } = useCollections();
@@ -232,4 +232,4 @@ export function CollectionSidebar() {
       </Dialog>
     </>
   );
-}
+});

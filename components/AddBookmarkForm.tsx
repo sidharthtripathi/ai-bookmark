@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { Link2, StickyNote, Loader2, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,7 +15,7 @@ import {
 import { toast } from 'sonner';
 import { useCollections, useCreateCollection, useCreateBookmark } from '@/lib/hooks';
 
-export function AddBookmarkForm() {
+export const AddBookmarkForm = memo(function AddBookmarkForm() {
   const [url, setUrl] = useState('');
   const [note, setNote] = useState('');
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
@@ -196,4 +196,4 @@ export function AddBookmarkForm() {
       </Button>
     </form>
   );
-}
+});

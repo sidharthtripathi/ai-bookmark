@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, memo } from 'react';
 import { BookmarkCard } from './BookmarkCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
 import { AlertTriangle, Trash2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useDeleteBookmark, useUpdateBookmark } from '@/lib/hooks';
+import { useDeleteBookmark } from '@/lib/hooks';
 
 interface BookmarkGridProps {
   bookmarks: any[];
@@ -14,27 +14,42 @@ interface BookmarkGridProps {
   onUpdate?: () => void;
 }
 
-export function BookmarkGrid({ bookmarks, isLoading = false, onUpdate }: BookmarkGridProps) {
+export const BookmarkGrid = memo(function BookmarkGrid({ bookmarks, isLoading = false, onUpdate }: BookmarkGridProps) {
   const [liveFailed, setLiveFailed] = useState<any[]>([]);
   const [retryingIds, setRetryingIds] = useState<Set<string>>(new Set());
+  const esRef = useRef<EventSource | null>(null);
 
   const deleteBookmark = useDeleteBookmark();
-  const updateBookmark = useUpdateBookmark();
 
+  // SSE connection - stable across renders
   useEffect(() => {
-    const es = new EventSource('/api/bookmarks/stream');
+    if (!esRef.current) {
+      esRef.current = new EventSource('/api/bookmarks/stream');
 
-    es.onmessage = (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        if (data.type === 'status_update' && data.bookmarks) {
-          const failed = data.bookmarks.filter((b: any) => b.status === 'failed');
-          setLiveFailed(failed);
-        }
-      } catch {}
+      esRef.current.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (data.type === 'status_update' && data.bookmarks) {
+            const newFailed = data.bookmarks.filter((b: any) => b.status === 'failed');
+            // Only update if the failed ids actually changed
+            setLiveFailed(prev => {
+              const prevIds = new Set(prev.map(p => p.id));
+              const newIds = new Set(newFailed.map((n: any) => n.id));
+              const hasChanged = newFailed.length !== prev.length ||
+                newFailed.some((n: any) => !prevIds.has(n.id));
+              return hasChanged ? newFailed : prev;
+            });
+          }
+        } catch {}
+      };
+    }
+
+    return () => {
+      if (esRef.current) {
+        esRef.current.close();
+        esRef.current = null;
+      }
     };
-
-    return () => es.close();
   }, []);
 
   const done = bookmarks.filter((b) => b.status === 'done');
@@ -49,18 +64,8 @@ export function BookmarkGrid({ bookmarks, isLoading = false, onUpdate }: Bookmar
     }
   });
 
-  // Show skeletons when loading and no bookmarks yet
-  if (isLoading && bookmarks.length === 0) {
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {[1, 2, 3, 4, 5, 6].map((i) => (
-          <ProcessingCardSkeleton key={i} />
-        ))}
-      </div>
-    );
-  }
-
-  if (bookmarks.length === 0 && liveFailed.length === 0) {
+  // Show empty state when no bookmarks exist
+  if (bookmarks.length === 0 && !isLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
         <div className="rounded-full bg-muted p-4 mb-4">
@@ -154,7 +159,7 @@ export function BookmarkGrid({ bookmarks, isLoading = false, onUpdate }: Bookmar
       )}
     </div>
   );
-}
+});
 
 function FailedCard({
   bookmark,
