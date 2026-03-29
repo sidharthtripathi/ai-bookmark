@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { Worker } from 'bullmq';
 import { handleProcessingJob } from './processor';
 import { handlePineconeUpsertJob } from './pinecone-worker';

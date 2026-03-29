@@ -88,7 +88,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const processedContentId = bookmark.processedContentId;
   const otherBookmarksCount = bookmark.processedContent.bookmarks.filter(b => b.id !== bookmark.id).length;
 
-  await deleteBookmarkVector(id);
+  await deleteBookmarkVector(id).catch(() => { /* ignore vector deletion errors */ });
   await db.bookmark.delete({ where: { id } });
 
   // If this was the last bookmark referencing this ProcessedContent, clean it up
