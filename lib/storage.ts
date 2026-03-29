@@ -1,6 +1,6 @@
 import { S3Client } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
-import { validateUrlForFetching, assertUrlSafe } from './url-validator';
+import { assertUrlSafe } from './url-validator';
 
 const s3 = new S3Client({
   region: 'auto',
