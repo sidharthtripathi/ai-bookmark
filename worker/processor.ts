@@ -10,7 +10,7 @@ import { extractInstagram } from '../lib/extractors/instagram';
 import { extractRedditThread, extractRedditSubreddit, extractRedditUser } from '../lib/extractors/reddit';
 import { extractWebPage } from '../lib/extractors/web';
 import { downloadBuffer } from '../lib/storage';
-import type { BookmarkAIResult } from '../lib/gemini-helpers';
+import type { AIResult } from '../lib/minimax';
 
 export async function handleProcessingJob(processedContentId: string) {
   const content = await db.processedContent.findUnique({
@@ -101,7 +101,7 @@ export async function handleProcessingJob(processedContentId: string) {
   }
 }
 
-async function routeExtractor(content: { platform: string; resource: string; normalisedUrl: string }): Promise<BookmarkAIResult> {
+async function routeExtractor(content: { platform: string; resource: string; normalisedUrl: string }): Promise<AIResult> {
   const { platform, resource, normalisedUrl } = content;
 
   if (platform === 'youtube') {

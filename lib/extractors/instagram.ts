@@ -1,13 +1,9 @@
 import { ApifyClient } from 'apify-client';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { GoogleAIFileManager, FileState } from '@google/generative-ai/server';
-import { parseGeminiJson } from '../gemini-helpers';
+import { generateText, parseAIJson } from '../minimax';
 import type { ClassifiedUrl } from '../url-pipeline/classify-url';
-import type { BookmarkAIResult } from '../gemini-helpers';
-import { downloadBuffer } from '../storage';
+import type { AIResult } from '../minimax';
 
 const apify = new ApifyClient({ token: process.env.APIFY_API_TOKEN! });
-const genai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 interface InstagramPost {
   type?: string;
@@ -21,7 +17,7 @@ interface InstagramPost {
   shortCode?: string;
 }
 
-export async function extractInstagram(classifiedUrl: ClassifiedUrl & { platform: 'instagram' }): Promise<BookmarkAIResult> {
+export async function extractInstagram(classifiedUrl: ClassifiedUrl & { platform: 'instagram' }): Promise<AIResult> {
   if (!classifiedUrl.valid) throw new Error('Invalid URL');
   if (classifiedUrl.resource === 'profile') return extractInstagramProfile(classifiedUrl as any);
   return extractInstagramPost(classifiedUrl as any);
@@ -29,7 +25,7 @@ export async function extractInstagram(classifiedUrl: ClassifiedUrl & { platform
 
 async function extractInstagramPost(
   classifiedUrl: ClassifiedUrl & { platform: 'instagram'; resource: 'post' | 'reel'; valid: true }
-): Promise<BookmarkAIResult> {
+): Promise<AIResult> {
   const run = await apify.actor('apify/instagram-post-scraper').call({
     directUrls: [classifiedUrl.normalised],
     resultsLimit: 1,
@@ -42,134 +38,46 @@ async function extractInstagramPost(
   const caption = post.caption ?? '';
   const author = post.ownerUsername ?? 'unknown';
 
-  if (classifiedUrl.resource === 'reel' || post.type === 'Video') {
-    return analyzeInstagramVideo(post, caption, author);
-  }
-  if (post.type === 'Sidecar') {
-    return analyzeInstagramCarousel(post, caption, author);
-  }
-  return analyzeInstagramImage(post, caption, author);
+  return analyzeInstagramText(post, caption, author);
 }
 
-async function analyzeInstagramImage(post: InstagramPost, caption: string, author: string): Promise<BookmarkAIResult> {
-  const imageBuffer = await downloadBuffer(post.imageUrl!);
+async function analyzeInstagramText(post: InstagramPost, caption: string, author: string): Promise<AIResult> {
+  const systemPrompt = `You are an expert Instagram content analyzer. Return ONLY valid JSON with no markdown fences or explanation.`;
 
-  const model = genai.getGenerativeModel({ model: 'gemini-2.0-flash' });
-  const result = await model.generateContent({
-    contents: [{
-      role: 'user',
-      parts: [
-        { inlineData: { mimeType: 'image/jpeg', data: imageBuffer.toString('base64') } },
-        { text: `This is a single-image Instagram post.
+  const mediaDescription = [
+    post.type ? `Post type: ${post.type}` : '',
+    post.images?.length ? `Contains ${post.images.length} image(s)` : '',
+    post.videoUrl ? 'Contains a video' : '',
+  ].filter(Boolean).join('. ');
+
+  const result = await generateText(
+    `Analyze this Instagram post:
+Type: ${post.type ?? 'Unknown'}
+Author: @${author}
 Caption: "${caption}"
+${mediaDescription}
+Image URLs: ${post.images?.join(', ') ?? post.imageUrl ?? 'None'}
 
-Analyze the image and caption together. Return a JSON object with exactly these fields:
-- title: string (short descriptive title based on image and caption, max 100 chars)
+Return a JSON object with exactly these fields:
+- title: string (short descriptive title based on caption, max 100 chars)
 - summary: string (2-4 sentences — what is shown, what the post is about)
-- key_topics: string[] (5-10 topics, themes, objects, or subjects visible or mentioned)
-- category: string (pick exactly ONE: Technology | Science | Health | Finance | Business | Design | Education | Entertainment | News | Food | Travel | Sports | Philosophy | History | Art | Other)
-- content_type: string ("Photo" | "Infographic" | "Meme" | "Screenshot" | "Illustration" | "Recipe" | "Other")
-- author: string ("${author}")
-- searchable_context: string (all objects, places, people, brands, text visible in image, key themes from caption — optimised for semantic search)
-- thumbnail_url: string | null (always null — set by caller)
-
-Return ONLY valid JSON.` }
-      ]
-    }]
-  });
-
-  const aiResult = parseGeminiJson(result.response.text());
-  aiResult.thumbnail_url = post.imageUrl ?? null;
-  return aiResult;
-}
-
-async function analyzeInstagramCarousel(post: InstagramPost, caption: string, author: string): Promise<BookmarkAIResult> {
-  const carouselImages = (post.images ?? [])
-    .filter((url: string) => url)
-    .slice(0, 4);
-
-  const imageBuffers = await Promise.all(carouselImages.map(downloadBuffer));
-
-  const parts: any[] = imageBuffers.map(buf => ({
-    inlineData: { mimeType: 'image/jpeg', data: buf.toString('base64') }
-  }));
-
-  parts.push({
-    text: `This is an Instagram carousel post with ${post.images?.length ?? 'multiple'} items total.
-${carouselImages.length} image(s) are shown above.
-Caption: "${caption}"
-
-Analyze ALL images shown and the caption together. Return a JSON object with exactly these fields:
-- title: string (short descriptive title capturing the carousel's theme, max 100 chars)
-- summary: string (2-4 sentences — what the carousel is about, what the images collectively show)
-- key_topics: string[] (5-10 topics, themes, objects, or subjects across all images and caption)
-- category: string (pick exactly ONE: Technology | Science | Health | Finance | Business | Design | Education | Entertainment | News | Food | Travel | Sports | Philosophy | History | Art | Other)
-- content_type: string ("Carousel" | "Photo Series" | "Tutorial Series" | "Before/After" | "Other")
-- author: string ("${author}")
-- searchable_context: string (all objects, places, people, brands, text visible across images, themes from caption — optimised for semantic search)
-- thumbnail_url: string | null (always null — set by caller)
-
-Return ONLY valid JSON.`
-  });
-
-  const model = genai.getGenerativeModel({ model: 'gemini-2.0-flash' });
-  const result = await model.generateContent({ contents: [{ role: 'user', parts }] });
-
-  const aiResult = parseGeminiJson(result.response.text());
-  aiResult.thumbnail_url = carouselImages[0] ?? post.imageUrl ?? null;
-  return aiResult;
-}
-
-async function analyzeInstagramVideo(post: InstagramPost, caption: string, author: string): Promise<BookmarkAIResult> {
-  const videoBuffer = await downloadBuffer(post.videoUrl!);
-  const fileManager = new GoogleAIFileManager(process.env.GEMINI_API_KEY!);
-
-  const uploadResult = await fileManager.uploadFile(videoBuffer, {
-    mimeType: 'video/mp4',
-    displayName: `instagram-${post.shortCode}-${Date.now()}`,
-  });
-
-  let file = await fileManager.getFile(uploadResult.file.name);
-  let attempts = 0;
-  while (file.state === FileState.PROCESSING && attempts < 30) {
-    await new Promise(r => setTimeout(r, 2000));
-    file = await fileManager.getFile(uploadResult.file.name);
-    attempts++;
-  }
-  if (file.state !== FileState.ACTIVE) throw new Error('Gemini file processing failed or timed out');
-
-  const model = genai.getGenerativeModel({ model: 'gemini-2.0-flash' });
-  const result = await model.generateContent({
-    contents: [{
-      role: 'user',
-      parts: [
-        { fileData: { mimeType: 'video/mp4', fileUri: file.uri } },
-        { text: `This is an Instagram ${post.type === 'Video' ? 'video' : 'reel'}.
-Caption: "${caption}"
-
-Analyze the full video content and caption together. Return a JSON object with exactly these fields:
-- title: string (short descriptive title, max 100 chars)
-- summary: string (2-4 sentences — what is shown and what the reel/video is about)
 - key_topics: string[] (5-10 topics, themes, or subjects)
 - category: string (pick exactly ONE: Technology | Science | Health | Finance | Business | Design | Education | Entertainment | News | Food | Travel | Sports | Philosophy | History | Art | Other)
-- content_type: string ("Reel" | "Video" | "Tutorial" | "Vlog" | "Comedy" | "Recipe" | "Workout" | "Other")
+- content_type: string ("Photo" | "Infographic" | "Meme" | "Screenshot" | "Illustration" | "Recipe" | "Carousel" | "Reel" | "Video" | "Other")
 - author: string ("${author}")
-- searchable_context: string (activities shown, places, people, brands, audio/music referenced, techniques demonstrated, key spoken points — optimised for semantic search)
-- thumbnail_url: string | null (always null — set by caller)
+- searchable_context: string (all themes, places, people, brands, text from caption, key topics — optimised for semantic search)
+- thumbnail_url: string | null (post image URL: "${post.imageUrl ?? post.images?.[0] ?? null}")
 
-Return ONLY valid JSON.` }
-      ]
-    }]
-  });
+Return ONLY valid JSON.`,
+    systemPrompt
+  );
 
-  await fileManager.deleteFile(file.name);
-
-  const aiResult = parseGeminiJson(result.response.text());
-  aiResult.thumbnail_url = post.thumbnailUrl ?? post.imageUrl ?? null;
+  const aiResult = parseAIJson(result);
+  aiResult.thumbnail_url = post.imageUrl ?? post.images?.[0] ?? null;
   return aiResult;
 }
 
-async function extractInstagramProfile(classifiedUrl: ClassifiedUrl & { platform: 'instagram'; resource: 'profile'; valid: true }): Promise<BookmarkAIResult> {
+async function extractInstagramProfile(classifiedUrl: ClassifiedUrl & { platform: 'instagram'; resource: 'profile'; valid: true }): Promise<AIResult> {
   const run = await apify.actor('apify/instagram-profile-scraper').call({
     directUrls: [classifiedUrl.normalised],
     resultsLimit: 1,
@@ -178,12 +86,11 @@ async function extractInstagramProfile(classifiedUrl: ClassifiedUrl & { platform
   if (!items.length) throw new Error('Instagram profile not found');
 
   const profile = items[0] as any;
-  const model = genai.getGenerativeModel({ model: 'gemini-2.0-flash' });
-  const result = await model.generateContent({
-    contents: [{
-      role: 'user',
-      parts: [{
-        text: `Analyze this Instagram profile:
+
+  const systemPrompt = `You are an expert Instagram profile analyzer. Return ONLY valid JSON with no markdown fences or explanation.`;
+
+  const result = await generateText(
+    `Analyze this Instagram profile:
 Username: ${profile.username}
 Full name: ${profile.fullName ?? ''}
 Bio: ${profile.description ?? ''}
@@ -199,14 +106,13 @@ Return a JSON object with exactly these fields:
 - content_type: string ("Instagram Profile")
 - author: string (username)
 - searchable_context: string (profile niche, content themes, audience type — optimised for semantic search)
-- thumbnail_url: string | null (profile picture URL if available)
+- thumbnail_url: string | null (profile picture URL if available: "${profile.profilePicture ?? null}")
 
-Return ONLY valid JSON. No markdown fences.`
-      }]
-    }]
-  });
+Return ONLY valid JSON. No markdown fences.`,
+    systemPrompt
+  );
 
-  const aiResult = parseGeminiJson(result.response.text());
+  const aiResult = parseAIJson(result);
   aiResult.thumbnail_url = profile.profilePicture ?? null;
   return aiResult;
 }

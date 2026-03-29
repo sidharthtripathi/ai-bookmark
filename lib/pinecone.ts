@@ -1,7 +1,14 @@
 import { QdrantClient } from '@qdrant/js-client-rest';
+import crypto from 'crypto';
+
+function cuidToUuid(cuid: string): string {
+  // Create a deterministic UUID from a CUID
+  const hash = crypto.createHash('sha256').update(cuid).digest('hex');
+  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-${hash.slice(12, 16)}-${hash.slice(16, 20)}-${hash.slice(20, 32)}`;
+}
 
 const COLLECTION_NAME = process.env.QDRANT_COLLECTION || 'bookmarks';
-const VECTOR_DIMENSION = 1536;
+const VECTOR_DIMENSION = 3072;
 
 // Singleton client
 let client: QdrantClient | null = null;
@@ -25,7 +32,7 @@ function getClient(): QdrantClient {
 export async function ensureCollection(): Promise<void> {
   const qdrant = getClient();
   try {
-    await qdrant.getCollection(COLLECTION_NAME);
+    const coll = await qdrant.getCollection(COLLECTION_NAME);
   } catch {
     // Collection doesn't exist, create it
     await qdrant.createCollection(COLLECTION_NAME, {
@@ -53,9 +60,10 @@ export async function upsertBookmarkVector(
     wait: true,
     points: [
       {
-        id: bookmarkId,
+        id: cuidToUuid(bookmarkId),
         vector: embedding,
         payload: {
+          bookmarkId,
           userId,
           platform,
           resource,
@@ -118,10 +126,11 @@ export async function searchBookmarks(
     filter: {
       must: mustConditions,
     },
+    score_threshold: 0.7, // Only return results with cosine similarity > 0.7
   });
 
   return results.map((point: any) => ({
-    id: point.id,
+    id: point.payload.bookmarkId,
     score: point.score,
     userId: point.payload.userId,
     platform: point.payload.platform,
@@ -134,7 +143,7 @@ export async function searchBookmarks(
 export async function deleteBookmarkVector(bookmarkId: string): Promise<void> {
   const qdrant = getClient();
   await qdrant.delete(COLLECTION_NAME, {
-    points: [bookmarkId],
+    points: [cuidToUuid(bookmarkId)],
   });
 }
 

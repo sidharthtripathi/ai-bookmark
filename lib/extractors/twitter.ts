@@ -1,12 +1,9 @@
 import { ApifyClient } from 'apify-client';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { generateText, parseAIJson } from '../minimax';
 import type { ClassifiedUrl } from '../url-pipeline/classify-url';
-import { parseGeminiJson } from '../gemini-helpers';
-import type { BookmarkAIResult } from '../gemini-helpers';
-import { downloadBuffer } from '../storage';
+import type { AIResult } from '../minimax';
 
 const apify = new ApifyClient({ token: process.env.APIFY_API_TOKEN! });
-const genai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 interface TwitterScrapedData {
   text?: string;
@@ -33,13 +30,11 @@ export async function scrapeTwitter(classifiedUrl: ValidTwitterUrl): Promise<Twi
   return items as TwitterScrapedData[];
 }
 
-export async function extractTwitter(classifiedUrl: ValidTwitterUrl): Promise<BookmarkAIResult> {
+export async function extractTwitter(classifiedUrl: ValidTwitterUrl): Promise<AIResult> {
   const scraped = await scrapeTwitter(classifiedUrl);
 
   const isThread = scraped.length > 1 && scraped.every(t => t.author?.userName === scraped[0].author?.userName);
   const contentType = classifiedUrl.resource === 'profile' ? 'Twitter Profile' : (isThread ? 'Thread' : 'Tweet');
-
-  const parts: any[] = [];
 
   const allMediaItems = scraped.flatMap(t => [
     ...(t.media ?? []),
@@ -52,11 +47,6 @@ export async function extractTwitter(classifiedUrl: ValidTwitterUrl): Promise<Bo
 
   const hasVideo = allMediaItems.some(m => m.type === 'video');
   const hasGif   = allMediaItems.some(m => m.type === 'gif');
-
-  for (const photoUrl of photoUrls) {
-    const buffer = await downloadBuffer(photoUrl);
-    parts.push({ inlineData: { mimeType: 'image/jpeg', data: buffer.toString('base64') } });
-  }
 
   const tweetBlocks = scraped.map((t, i) => {
     const mediaNote = [
@@ -71,10 +61,12 @@ export async function extractTwitter(classifiedUrl: ValidTwitterUrl): Promise<Bo
     return `[${i === 0 ? 'Main tweet' : `Reply ${i}`}] @${t.author?.userName}: ${t.text}${mediaNote ? ' ' + mediaNote : ''}${urlNote ? ' ' + urlNote : ''}${quotedNote ? '\n' + quotedNote : ''}`;
   }).join('\n\n');
 
-  parts.push({
-    text: `You are analyzing a Twitter/X ${contentType.toLowerCase()}.
-${photoUrls.length > 0 ? `The ${photoUrls.length} image(s) above are attached to this tweet/thread.` : ''}
-${hasVideo ? 'Note: this tweet also contains a video (not shown — describe based on text context).' : ''}
+  const systemPrompt = `You are an expert Twitter/X content analyzer. Return ONLY valid JSON with no markdown fences or explanation.`;
+
+  const result = await generateText(
+    `You are analyzing a Twitter/X ${contentType.toLowerCase()}.
+${photoUrls.length > 0 ? `Note: this tweet/thread contains ${photoUrls.length} image(s) (URLs: ${photoUrls.join(', ')}).` : ''}
+${hasVideo ? 'Note: this tweet also contains a video (not analyzed — describe based on text context).' : ''}
 ${hasGif ? 'Note: this tweet also contains a GIF.' : ''}
 
 Tweet content:
@@ -82,23 +74,21 @@ Tweet content:
 ${tweetBlocks}
 ---
 
-Analyze ALL content above — text, any images shown, quoted tweets, and linked URLs. Return a JSON object with exactly these fields:
+Analyze ALL content above — text, any quoted tweets, and linked URLs. Return a JSON object with exactly these fields:
 - title: string (first ~100 characters of the main tweet text, or display name for profiles)
 - summary: string (2-4 sentences covering what is said, shown, or argued across the whole tweet/thread)
 - key_topics: string[] (5-10 topics, hashtags, concepts mentioned)
 - category: string (pick exactly ONE: Technology | Science | Health | Finance | Business | Design | Education | Entertainment | News | Food | Travel | Sports | Philosophy | History | Art | Other)
 - content_type: string ("Tweet" | "Tweet with Images" | "Tweet with Video" | "Thread" | "Thread with Media" | "Twitter Profile")
 - author: string (@username of the main author)
-- searchable_context: string (all specific names, arguments, linked resources, hashtags, people referenced, what images show — optimised for semantic search)
+- searchable_context: string (all specific names, arguments, linked resources, hashtags, people referenced — optimised for semantic search)
 - thumbnail_url: string | null (always null here — set by caller)
 
-Return ONLY valid JSON. No markdown fences, no explanation.`
-  });
+Return ONLY valid JSON. No markdown fences, no explanation.`,
+    systemPrompt
+  );
 
-  const model = genai.getGenerativeModel({ model: 'gemini-2.0-flash' });
-  const result = await model.generateContent({ contents: [{ role: 'user', parts }] });
-
-  const aiResult = parseGeminiJson(result.response.text());
+  const aiResult = parseAIJson(result);
   aiResult.thumbnail_url = photoUrls[0] ?? null;
 
   return aiResult;

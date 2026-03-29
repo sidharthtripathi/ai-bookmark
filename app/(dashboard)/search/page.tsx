@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { BookmarkGrid } from '@/components/BookmarkGrid';
 import { SearchBar } from '@/components/SearchBar';
 
@@ -20,15 +20,15 @@ export default function SearchPage() {
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    const timer = setTimeout(() => doSearch(query), 300);
-    return () => clearTimeout(timer);
-  }, [query, doSearch]);
-
   return (
     <div>
       <h2 className="text-2xl font-bold mb-6">Search Bookmarks</h2>
-      <SearchBar value={query} onChange={setQuery} placeholder="Search by meaning, not keywords..." />
+      <SearchBar
+        value={query}
+        onChange={setQuery}
+        onSearch={() => doSearch(query)}
+        placeholder="Search by meaning, not keywords..."
+      />
 
       {loading && <p className="mt-4 text-muted-foreground">Searching...</p>}
 

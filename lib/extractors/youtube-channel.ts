@@ -1,16 +1,11 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { BookmarkAIResult, parseGeminiJson } from '../gemini-helpers';
+import { generateText, parseAIJson } from '../minimax';
+import type { AIResult } from '../minimax';
 
-const genai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+export async function extractYouTubeChannel(normalisedUrl: string): Promise<AIResult> {
+  const systemPrompt = `You are an expert YouTube channel analyzer. Return ONLY valid JSON with no markdown fences or explanation.`;
 
-export async function extractYouTubeChannel(normalisedUrl: string): Promise<BookmarkAIResult> {
-  const model = genai.getGenerativeModel({ model: 'gemini-2.0-flash' });
-
-  const result = await model.generateContent({
-    contents: [{
-      role: 'user',
-      parts: [{
-        text: `Analyze this YouTube channel: ${normalisedUrl}
+  const result = await generateText(
+    `Analyze this YouTube channel: ${normalisedUrl}
 
 Return a JSON object with exactly these fields:
 - title: string (channel name)
@@ -22,10 +17,9 @@ Return a JSON object with exactly these fields:
 - searchable_context: string (channel niche, notable series or videos mentioned on the page, creator's background, audience type — optimised for semantic search)
 - thumbnail_url: string | null (channel avatar/banner URL if found on the page, else null)
 
-Return ONLY valid JSON. No markdown fences, no explanation.`
-      }]
-    }]
-  });
+Return ONLY valid JSON. No markdown fences, no explanation.`,
+    systemPrompt
+  );
 
-  return parseGeminiJson(result.response.text());
+  return parseAIJson(result);
 }

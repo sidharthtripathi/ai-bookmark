@@ -1,10 +1,8 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { generateText, parseAIJson } from '../minimax';
 import type { ClassifiedUrl } from '../url-pipeline/classify-url';
-import { parseGeminiJson } from '../gemini-helpers';
-import type { BookmarkAIResult } from '../gemini-helpers';
+import type { AIResult } from '../minimax';
 
-const genai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-const REDDIT_USER_AGENT = process.env.REDDIT_USER_AGENT ?? 'BookmarkApp/1.0 (by /u/yourusername)';
+const REDDIT_USER_AGENT = process.env.REDDIT_USER_AGENT ?? 'BookmarkApp/1.0 (by /u/bookmarkuser)';
 
 async function fetchRedditJson(normalisedUrl: string): Promise<any> {
   const jsonUrl = normalisedUrl.replace(/\/?$/, '.json') + '?limit=50&raw_json=1';
@@ -19,7 +17,7 @@ async function fetchRedditJson(normalisedUrl: string): Promise<any> {
   return response.json();
 }
 
-export async function extractRedditThread(classifiedUrl: ClassifiedUrl & { platform: 'reddit'; resource: 'thread'; valid: true }): Promise<BookmarkAIResult> {
+export async function extractRedditThread(classifiedUrl: ClassifiedUrl & { platform: 'reddit'; resource: 'thread'; valid: true }): Promise<AIResult> {
   const data = await fetchRedditJson(classifiedUrl.normalised);
 
   const post = data[0]?.data?.children?.[0]?.data;
@@ -41,11 +39,10 @@ Top comments:
 ${comments?.map((c: any, i: number) => `[Comment ${i+1}] u/${c.author}: ${c.body.slice(0, 500)}`).join('\n\n') ?? 'No comments'}
   `.trim();
 
-  const result = await genai.getGenerativeModel({ model: 'gemini-2.0-flash' }).generateContent({
-    contents: [{
-      role: 'user',
-      parts: [{
-        text: `You are analyzing a Reddit thread. Here is the content:
+  const systemPrompt = `You are an expert Reddit thread analyzer. Return ONLY valid JSON with no markdown fences or explanation.`;
+
+  const result = await generateText(
+    `You are analyzing a Reddit thread. Here is the content:
 
 ---
 ${threadText}
@@ -61,15 +58,14 @@ Return a JSON object with exactly these fields:
 - searchable_context: string (all specific names, techniques, tools, products, arguments, notable comment perspectives — optimised for semantic search)
 - thumbnail_url: string | null (post thumbnail URL if it's an image/link post: "${post.thumbnail && !['self','default','nsfw',''].includes(post.thumbnail) ? post.thumbnail : ''}" — use null if not a valid image URL)
 
-Return ONLY valid JSON.`
-      }]
-    }]
-  });
+Return ONLY valid JSON.`,
+    systemPrompt
+  );
 
-  return parseGeminiJson(result.response.text());
+  return parseAIJson(result);
 }
 
-export async function extractRedditSubreddit(classifiedUrl: ClassifiedUrl & { platform: 'reddit'; resource: 'subreddit'; valid: true }): Promise<BookmarkAIResult> {
+export async function extractRedditSubreddit(classifiedUrl: ClassifiedUrl & { platform: 'reddit'; resource: 'subreddit'; valid: true }): Promise<AIResult> {
   const aboutData = await fetch(`${classifiedUrl.normalised}/about.json`, {
     headers: { 'User-Agent': REDDIT_USER_AGENT }
   }).then(r => r.json());
@@ -85,9 +81,10 @@ Extended description: ${sub.description?.slice(0, 1000)}
 Members: ${sub.subscribers?.toLocaleString()}
   `.trim();
 
-  const result = await genai.getGenerativeModel({ model: 'gemini-2.0-flash' }).generateContent({
-    contents: [{ role: 'user', parts: [{
-      text: `Analyze this Reddit subreddit and return a JSON object:
+  const systemPrompt = `You are an expert Reddit subreddit analyzer. Return ONLY valid JSON with no markdown fences or explanation.`;
+
+  const result = await generateText(
+    `Analyze this Reddit subreddit and return a JSON object:
 
 ---
 ${subText}
@@ -103,14 +100,14 @@ Fields:
 - searchable_context: dense paragraph with community focus, typical post types, related communities
 - thumbnail_url: "${sub.icon_img || sub.community_icon || null}"
 
-Return ONLY valid JSON.`
-    }]}]
-  });
+Return ONLY valid JSON.`,
+    systemPrompt
+  );
 
-  return parseGeminiJson(result.response.text());
+  return parseAIJson(result);
 }
 
-export async function extractRedditUser(normalisedUrl: string): Promise<BookmarkAIResult> {
+export async function extractRedditUser(normalisedUrl: string): Promise<AIResult> {
   // Extract username from URL like /u/username
   const match = normalisedUrl.match(/\/u\/([^/]+)/);
   const username = match?.[1] ?? 'unknown';
@@ -121,9 +118,10 @@ export async function extractRedditUser(normalisedUrl: string): Promise<Bookmark
 
   const user = profileData?.data;
 
-  const result = await genai.getGenerativeModel({ model: 'gemini-2.0-flash' }).generateContent({
-    contents: [{ role: 'user', parts: [{
-      text: `Analyze this Reddit user profile:
+  const systemPrompt = `You are an expert Reddit user analyzer. Return ONLY valid JSON with no markdown fences or explanation.`;
+
+  const result = await generateText(
+    `Analyze this Reddit user profile:
 Username: u/${username}
 Karma: ${user?.karma ?? 'unknown'}
 Cake day: ${user?.created_utc ? new Date(user.created_utc * 1000).toLocaleDateString() : 'unknown'}
@@ -140,9 +138,9 @@ Return a JSON object:
 - searchable_context: user's typical activity, interests inferred from karma and subreddit
 - thumbnail_url: "${user?.subreddit?.icon_img ?? null}"
 
-Return ONLY valid JSON.`
-    }]}]
-  });
+Return ONLY valid JSON.`,
+    systemPrompt
+  );
 
-  return parseGeminiJson(result.response.text());
+  return parseAIJson(result);
 }

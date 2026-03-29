@@ -1,22 +1,16 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { parseGeminiJson } from '../gemini-helpers';
-import type { BookmarkAIResult } from '../gemini-helpers';
+import { generateText, parseAIJson } from '../minimax';
+import type { AIResult } from '../minimax';
 import { JSDOM } from 'jsdom';
 import { Readability } from '@mozilla/readability';
 
-const genai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-
-export async function extractWebPage(normalisedUrl: string): Promise<BookmarkAIResult> {
+export async function extractWebPage(normalisedUrl: string): Promise<AIResult> {
   let thumbnailUrl: string | null = null;
 
   try {
-    const model = genai.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const systemPrompt = `You are an expert web content analyzer. Return ONLY valid JSON with no markdown fences or explanation.`;
 
-    const result = await model.generateContent({
-      contents: [{
-        role: 'user',
-        parts: [{
-          text: `Analyze this webpage: ${normalisedUrl}
+    const result = await generateText(
+      `Analyze this webpage: ${normalisedUrl}
 
 Return a JSON object with exactly these fields:
 - title: string (page or article title)
@@ -28,12 +22,11 @@ Return a JSON object with exactly these fields:
 - searchable_context: string (all specific names, methodologies, product names, book references, named frameworks, terminology — optimised for semantic search)
 - thumbnail_url: string | null (the Open Graph og:image URL if the page has one, else null)
 
-Return ONLY valid JSON. No markdown fences, no explanation.`
-        }]
-      }]
-    });
+Return ONLY valid JSON. No markdown fences, no explanation.`,
+      systemPrompt
+    );
 
-    return parseGeminiJson(result.response.text());
+    return parseAIJson(result);
   } catch {
     // Fallback: fetch HTML and extract readable content
     const response = await fetch(normalisedUrl, {
@@ -60,12 +53,10 @@ Title: ${article?.title ?? 'Unknown'}
 Content: ${article?.textContent ?? html.slice(0, 5000)}
     `.trim();
 
-    const model = genai.getGenerativeModel({ model: 'gemini-2.0-flash' });
-    const result = await model.generateContent({
-      contents: [{
-        role: 'user',
-        parts: [{
-          text: `Analyze this webpage content and return a JSON object:
+    const systemPrompt = `You are an expert web content analyzer. Return ONLY valid JSON with no markdown fences or explanation.`;
+
+    const result = await generateText(
+      `Analyze this webpage content and return a JSON object:
 
 ---
 ${pageText}
@@ -81,12 +72,11 @@ Return a JSON object with exactly these fields:
 - searchable_context: string (all specific names, methodologies, product names, book references, named frameworks, terminology — optimised for semantic search)
 - thumbnail_url: string | null (${thumbnailUrl ? `"${thumbnailUrl}"` : 'null'})
 
-Return ONLY valid JSON.`
-        }]
-      }]
-    });
+Return ONLY valid JSON.`,
+      systemPrompt
+    );
 
-    const aiResult = parseGeminiJson(result.response.text());
+    const aiResult = parseAIJson(result);
     aiResult.thumbnail_url = aiResult.thumbnail_url ?? thumbnailUrl;
     return aiResult;
   }

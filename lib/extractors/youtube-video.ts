@@ -1,23 +1,13 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { BookmarkAIResult, parseGeminiJson } from '../gemini-helpers';
+import { generateText, parseAIJson } from '../minimax';
+import type { AIResult } from '../minimax';
 
-const genai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+export async function extractYouTubeVideo(normalisedUrl: string): Promise<AIResult> {
+  const systemPrompt = `You are an expert YouTube video analyzer. Return ONLY valid JSON with no markdown fences or explanation.`;
 
-export async function extractYouTubeVideo(normalisedUrl: string): Promise<BookmarkAIResult> {
-  const model = genai.getGenerativeModel({ model: 'gemini-2.0-flash' });
+  const result = await generateText(
+    `Analyze this YouTube video: ${normalisedUrl}
 
-  const result = await model.generateContent({
-    contents: [{
-      role: 'user',
-      parts: [
-        {
-          fileData: {
-            mimeType: 'video/*',
-            fileUri: normalisedUrl,
-          }
-        },
-        {
-          text: `You are analyzing a YouTube video. Return a JSON object with exactly these fields:
+You are analyzing a YouTube video. Return a JSON object with exactly these fields:
 - title: string (the video's title)
 - summary: string (3-5 sentences covering the main ideas, arguments, or narrative — write it as if explaining to someone who hasn't watched it)
 - key_topics: string[] (5-10 key concepts, subjects, or ideas discussed)
@@ -27,13 +17,11 @@ export async function extractYouTubeVideo(normalisedUrl: string): Promise<Bookma
 - searchable_context: string (a dense paragraph including all specific frameworks, named techniques, people mentioned, book titles, product names, terminology — optimised for semantic search. This is the most important field.)
 - thumbnail_url: string | null (always null — set by caller)
 
-Return ONLY valid JSON. No markdown fences, no explanation, no extra keys.`
-        }
-      ]
-    }]
-  });
+Return ONLY valid JSON. No markdown fences, no explanation, no extra keys.`,
+    systemPrompt
+  );
 
-  return parseGeminiJson(result.response.text());
+  return parseAIJson(result);
 }
 
 /**
